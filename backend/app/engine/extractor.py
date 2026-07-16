@@ -47,7 +47,20 @@ def _extract_docx(path: str) -> dict:
     try:
         from docx import Document
         doc = Document(path)
-        paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+        paragraphs = []
+        for p in doc.paragraphs:
+            text = p.text.strip()
+            if not text:
+                continue
+            style = (p.style.name if p.style and p.style.name else "").lower()
+            if "heading 1" in style or "标题 1" in style or "标题一" in style or "1.1" in style or "1 heading" in style:
+                paragraphs.append("# " + text)
+            elif "heading 2" in style or "标题 2" in style or "2 heading" in style:
+                paragraphs.append("## " + text)
+            elif "heading 3" in style or "标题 3" in style or "3 heading" in style:
+                paragraphs.append("### " + text)
+            else:
+                paragraphs.append(text)
         content = "\n".join(paragraphs)
         tables = []
         for table in doc.tables:

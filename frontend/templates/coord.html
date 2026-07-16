@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-title">坐标互转</div>
+<div class="page-subtitle">经纬度格式互转工具。支持度分秒 ↔ 十进制，WGS84 ↔ 其他坐标系。</div>
+
+<div class="grid" style="grid-template-columns:1fr 1fr;gap:16px;">
+  <div class="panel">
+    <div class="font-semibold mb-2" style="color:#0f172a;">度分秒 → 十进制度</div>
+    <div class="grid grid-3 gap-2 mb-2">
+      <div><label class="text-muted text-sm">度 (°)</label><input class="input" id="dms_deg" type="number" placeholder="113"></div>
+      <div><label class="text-muted text-sm">分 (′)</label><input class="input" id="dms_min" type="number" placeholder="25"></div>
+      <div><label class="text-muted text-sm">秒 (″)</label><input class="input" id="dms_sec" type="number" step="0.01" placeholder="30.5"></div>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="dms2dd()"><i class="fas fa-rotate"></i>转换</button>
+    <div class="mt-2 panel-soft p-2"><span class="text-muted text-sm">结果：</span><b id="dd_result">-</b></div>
+  </div>
+
+  <div class="panel">
+    <div class="font-semibold mb-2" style="color:#0f172a;">十进制度 → 度分秒</div>
+    <input class="input mb-2" id="dd_input" type="number" step="0.000001" placeholder="113.425139">
+    <button class="btn btn-primary btn-sm" onclick="dd2dms()"><i class="fas fa-rotate"></i>转换</button>
+    <div class="mt-2 panel-soft p-2"><span class="text-muted text-sm">结果：</span><b id="dms_result">-</b></div>
+  </div>
+</div>
+
+<div class="panel mt-3">
+  <div class="font-semibold mb-2" style="color:#0f172a;">批量转换（每行一个坐标）</div>
+  <textarea class="input" id="batchInput" rows="5" placeholder="113°25′30.5″
+23°7′45″
+113.425139, 23.129167"></textarea>
+  <button class="btn btn-primary btn-sm mt-2" onclick="batchConvert()"><i class="fas fa-calculator"></i>批量转换</button>
+  <div id="batchResult" class="mt-2 panel-soft p-2" style="font-family:monospace;white-space:pre-wrap;max-height:200px;overflow-y:auto;"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function dms2dd() {
+  const d = parseFloat(document.getElementById('dms_deg').value)||0;
+  const m = parseFloat(document.getElementById('dms_min').value)||0;
+  const s = parseFloat(document.getElementById('dms_sec').value)||0;
+  const sign = d >= 0 ? 1 : -1;
+  document.getElementById('dd_result').textContent = (sign * (Math.abs(d) + m/60 + s/3600)).toFixed(6);
+}
+function dd2dms() {
+  let dd = parseFloat(document.getElementById('dd_input').value)||0;
+  const sign = dd >= 0 ? '' : '-';
+  dd = Math.abs(dd);
+  const d = Math.floor(dd);
+  const m = Math.floor((dd - d) * 60);
+  const s = ((dd - d - m/60) * 3600).toFixed(1);
+  document.getElementById('dms_result').textContent = `${sign}${d}°${m}′${s}″`;
+}
+function batchConvert() {
+  const lines = document.getElementById('batchInput').value.split('\n').filter(l => l.trim());
+  const results = lines.map(line => {
+    const dms = line.match(/([+-]?\d+)°(\d+)′([\d.]+)″/);
+    if (dms) {
+      const d = parseInt(dms[1]); const m = parseInt(dms[2]); const s = parseFloat(dms[3]);
+      const sign = d >= 0 ? 1 : -1;
+      return `${line} → ${(sign*(Math.abs(d)+m/60+s/3600)).toFixed(6)}`;
+    }
+    const dd = parseFloat(line);
+    if (!isNaN(dd)) {
+      const abs = Math.abs(dd);
+      const d = Math.floor(abs); const min = (abs-d)*60;
+      return `${line} → ${dd>=0?'':'-'}${d}°${Math.floor(min)}′${(min-Math.floor(min))*60}s`;
+    }
+    return `${line} → 无法解析`;
+  });
+  document.getElementById('batchResult').textContent = results.join('\n');
+}
+</script>
+{% endblock %}

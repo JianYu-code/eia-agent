@@ -4,15 +4,15 @@ from app.engine.extractor import extract_text
 from app.engine.grader import grade_issues, build_issue
 
 REQUIRED_CHAPTERS = [
-    "前言", "总则", "总纲",
-    "编制依据", "评价因子", "评价标准", "评价等级", "评价范围",
-    "工程分析", "建设项目工程分析",
-    "环境现状", "环境质量现状", "环境现状调查与评价",
-    "环境影响预测", "环境影响预测与评价",
-    "环境保护措施", "污染防治措施", "环境保护措施及其可行性论证",
-    "环境经济损益", "环境影响经济损益分析",
-    "环境管理与监测", "环境管理与监测计划",
-    "环境影响评价结论", "评价结论",
+    "前言", "总则",
+    "编制依据", "评价因子", "评价标准",
+    "工程分析",
+    "环境现状调查与评价",
+    "环境影响预测与评价",
+    "环境保护措施及其可行性论证",
+    "环境影响经济损益分析",
+    "环境管理与监测计划",
+    "评价结论",
 ]
 
 STANDARD_PATTERN = re.compile(r"(?:GB|GB/T|HJ|HJ/T|环发|环办|国环规)\s*[\d.\-—]+(?:\s*[—\-]\s*\d{4})?")
@@ -55,12 +55,8 @@ async def run_audit_pipeline(project_id: str):
         await update_progress(20, "结构检查", "开始检查章节完整性...")
         all_issues = []
 
-        chapter_titles = [c["title"] for c in chapters]
-        chapter_text = " ".join(chapter_titles)
-        search_text = full_text if (len(chapters) == 1 and chapters[0]["title"] == "全文") else chapter_text
-
         for required in REQUIRED_CHAPTERS:
-            found = required in search_text
+            found = required in full_text
             if not found:
                 all_issues.append(build_issue(
                     rule_id="R-STRUCT-001",
