@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-title">文件检索</div>
+<div class="page-subtitle">搜索环保小智数据库中的 PDF/DOCX 文件，按名称查找并在线查阅</div>
+
+<div class="flex items-center gap-2 mb-4">
+  <div style="flex:1;max-width:500px;">
+    <input class="input" id="searchInput" placeholder="输入文件名、标准编号或关键词搜索..."
+           onkeydown="if(event.key==='Enter')search(1)" autofocus>
+  </div>
+  <button class="btn btn-primary" onclick="search(1)"><i class="fas fa-search"></i>搜索</button>
+  <select class="input" id="categoryFilter" onchange="search(1)" style="width:180px;">
+    <option value="">全部分类</option>
+  </select>
+</div>
+
+<div class="panel">
+  <div class="flex items-center justify-between mb-3">
+    <div class="font-semibold" style="color:#0f172a;">搜索结果 <span class="text-muted text-sm" id="resultCount"></span></div>
+    <div class="text-muted text-sm">点击文件可在新窗口打开查看</div>
+  </div>
+  <div id="fileList" class="text-muted">
+    <div style="text-align:center;padding:40px;color:var(--muted);">
+      <i class="fas fa-search" style="font-size:28px;color:var(--accent);display:block;margin-bottom:8px;"></i>
+      输入关键词搜索文件
+    </div>
+  </div>
+  <div id="pager" class="flex items-center justify-between mt-3" style="padding-top:12px;border-top:1px solid var(--line);display:none;"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let currentPage = 1;
+let totalPages = 1;
+
+async function search(page) {
+  currentPage = page || 1;
+  const q = document.getElementById('searchInput').value.trim();
+  const cat = document.getElementById('categoryFilter').value;
+  const params = new URLSearchParams({q, category:cat, page:currentPage, limit:30});
+  try {
+    const data = await api(`/api/files?${params}`);
+    const files = data.files || [];
+    document.getElementById('resultCount').textContent = `共 ${data.total} 条`;
+
+    document.getElementById('fileList').innerHTML = files.length
+      ? files.map(f => `<div class="panel-soft mb-2 flex items-center justify-between" style="padding:12px;">
+          <div style="min-width:0;flex:1;">
+            <div class="font-semibold" style="font-size:14px;">${esc(f.title)}</div>
+            <div class="flex items-center gap-2 mt-1">
+              <span class="badge badge-uploaded">${esc(f.file_type?.toUpperCase())}</span>
+              ${f.deprecated ? '<span class="badge badge-failed">已废止</span>' : '<span class="badge badge-completed">现行</span>'}
+              <span class="text-muted text-xs">${esc(f.standard_id||'')}</span>
+              <span class="text-muted text-xs">${formatSize(f.file_size)}</span>
+            </div>
+            <div class="text-muted text-xs mt-1">${esc(f.category||'')}</div>
+            ${f.deprecated && f.replaced_by ? `<div class="text-muted text-xs mt-1" style="color:var(--rose)">${esc(f.replaced_by)}</div>` : ''}
+          </div>
+          <a href="/api/files/${f.id}/view" target="_blank" class="btn btn-primary btn-sm" style="flex-shrink:0;"><i class="fas fa-file-pdf"></i>打开</a>
+        </div>`).join('')
+      : '<div style="text-align:center;padding:30px;color:var(--muted);">未找到匹配文件。运行 <code>python scripts\\scan_xiaozhi.py full</code> 创建文件索引。</div>';
+
+    totalPages = Math.ceil((data.total||1) / 30);
+    renderPager();
+  } catch(e) {
+    document.getElementById('fileList').innerHTML = `<div class="text-p0">${e.message}<br><span class="text-muted text-sm">请先运行 <code>python scripts\\scan_xiaozhi.py full</code> 创建文件索引。</span></div>`;
+  }
+}
+
+function renderPager() {
+  const pager = document.getElementById('pager');
+  if (totalPages <= 1) { pager.style.display = 'none'; return; }
+  pager.style.display = 'flex';
+  let html = `<button class="btn btn-muted btn-sm" onclick="search(${currentPage-1})" ${currentPage<=1?'disabled':''}><i class="fas fa-chevron-left"></i> 上一页</button>`;
+  html += `<span class="text-muted text-sm">第 ${currentPage} / ${totalPages} 页</span>`;
+  html += `<button class="btn btn-muted btn-sm" onclick="search(${currentPage+1})" ${currentPage>=totalPages?'disabled':''}>下一页 <i class="fas fa-chevron-right"></i></button>`;
+  pager.innerHTML = html;
+}
+
+function formatSize(bytes) {
+  if (!bytes) return '0 B';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/1048576).toFixed(1) + ' MB';
+}
+
+function esc(s) { return (s||'').replace(/</g,'&lt;'); }
+
+async function loadCategories() {
+  try {
+    const data = await api('/api/files/stats/categories');
+    const sel = document.getElementById('categoryFilter');
+    for (const row of data) {
+      if (row.category) {
+        sel.innerHTML += `<option value="${esc(row.category)}">${esc(row.category)} (${row.count})</option>`;
+      }
+    }
+  } catch(e) {}
+}
+
+loadCategories();
+</script>
+{% endblock %}

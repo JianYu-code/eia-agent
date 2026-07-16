@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <div class="page-title">首页概览</div>
+    <div class="page-subtitle">审核项目总览、统计趋势和快捷操作入口</div>
+  </div>
+</div>
+
+<div class="metric-grid mb-4" id="statCards">
+  <div class="metric-card"><b id="statUploaded">-</b><span>待审核</span></div>
+  <div class="metric-card"><b id="statRunning">-</b><span>审核中</span></div>
+  <div class="metric-card"><b id="statCompleted">-</b><span>已完成</span></div>
+</div>
+
+<div class="grid" style="grid-template-columns:minmax(0,1.6fr) 340px;gap:16px;">
+  <div class="panel">
+    <div class="flex items-center justify-between mb-3">
+      <div class="font-bold" style="font-size:16px;">最近项目</div>
+      <a href="/app/audit" class="text-sm" style="color:var(--accent-dark);">全部工单 <i class="fas fa-arrow-right"></i></a>
+    </div>
+    <div id="recentProjects" class="text-muted">加载中...</div>
+  </div>
+  <div class="panel">
+    <div class="font-bold mb-3" style="font-size:16px;">快捷操作</div>
+    <div class="grid grid-2 gap-2">
+      <a href="/app/audit" class="panel-soft text-center" style="display:block;transition:transform .15s;text-decoration:none;">
+        <i class="fas fa-upload" style="font-size:24px;color:var(--accent);display:block;margin-bottom:8px;"></i>
+        <div style="font-weight:700;color:var(--text);">上传审核</div>
+        <div class="text-muted text-xs mt-1">上传报告进行智能审核</div>
+      </a>
+      <a href="/app/knowledge" class="panel-soft text-center" style="display:block;transition:transform .15s;text-decoration:none;">
+        <i class="fas fa-comments" style="font-size:24px;color:var(--accent);display:block;margin-bottom:8px;"></i>
+        <div style="font-weight:700;color:var(--text);">知识问答</div>
+        <div class="text-muted text-xs mt-1">检索标准库并获取AI回答</div>
+      </a>
+      <a href="/app/realtime" class="panel-soft text-center" style="display:block;transition:transform .15s;text-decoration:none;">
+        <i class="fas fa-clock-rotate-left" style="font-size:24px;color:var(--accent);display:block;margin-bottom:8px;"></i>
+        <div style="font-weight:700;color:var(--text);">实时监控</div>
+        <div class="text-muted text-xs mt-1">查看审核队列和进度</div>
+      </a>
+      <a href="/app/settings" class="panel-soft text-center" style="display:block;transition:transform .15s;text-decoration:none;">
+        <i class="fas fa-sliders" style="font-size:24px;color:var(--accent);display:block;margin-bottom:8px;"></i>
+        <div style="font-weight:700;color:var(--text);">模型配置</div>
+        <div class="text-muted text-xs mt-1">管理大模型 API</div>
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function load() {
+  try {
+    const data = await api('/api/projects');
+    const projects = data.projects || [];
+    document.getElementById('statUploaded').textContent = projects.filter(p => p.status==='uploaded').length;
+    document.getElementById('statRunning').textContent = projects.filter(p => p.status==='running'||p.status==='queued').length;
+    document.getElementById('statCompleted').textContent = projects.filter(p => p.status==='completed').length;
+
+    const recent = projects.slice(0, 6);
+    document.getElementById('recentProjects').innerHTML = recent.length
+      ? recent.map(p => `<div class="flex items-center justify-between" style="padding:10px 0;border-bottom:1px solid var(--line);">
+          <div>
+            <div style="font-weight:600;">${esc(p.name||'未命名')}</div>
+            <div class="text-muted text-sm">${esc(p.filename)} · ${esc(p.created_at||'')}</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="badge ${sb(p.status)}">${sl(p.status)}</span>
+            ${p.report_url ? `<a href="/api/projects/${p.id}/report/view" target="_blank" class="btn btn-muted btn-sm btn-icon"><i class="fas fa-file-code"></i></a>` : ''}
+          </div>
+        </div>`).join('')
+      : '<div style="text-align:center;padding:30px;color:var(--muted);">暂无项目。上传一份报告开始审核。</div>';
+  } catch(e) { document.getElementById('recentProjects').textContent = '加载失败: '+e.message; }
+}
+function esc(s) { return (s||'').replace(/</g,'&lt;'); }
+function sb(s) { return {uploaded:'badge-uploaded',queued:'badge-queued',running:'badge-running',completed:'badge-completed',failed:'badge-failed',stopped:'badge-stopped'}[s]||''; }
+function sl(s) { return {uploaded:'待审核',queued:'排队中',running:'审核中',completed:'已完成',failed:'失败',stopped:'已暂停'}[s]||s; }
+load();
+</script>
+{% endblock %}

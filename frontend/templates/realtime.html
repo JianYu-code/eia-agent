@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="realtime-layout">
+  <div class="panel" style="overflow-y:auto;">
+    <div class="flex items-center justify-between mb-3">
+      <div class="font-semibold" style="color:#0f172a;">审核队列</div>
+      <button class="btn btn-muted btn-icon" onclick="loadProjects()" title="刷新"><i class="fas fa-rotate"></i></button>
+    </div>
+    <div class="realtime-filter-bar" id="queueFilter">
+      <button class="realtime-filter-btn active" onclick="filterQueue('all',this)">全部</button>
+      <button class="realtime-filter-btn" onclick="filterQueue('active',this)">进行中</button>
+      <button class="realtime-filter-btn" onclick="filterQueue('eia',this)">环评</button>
+      <button class="realtime-filter-btn" onclick="filterQueue('acceptance',this)">验收</button>
+      <button class="realtime-filter-btn" onclick="filterQueue('emergency',this)">应急</button>
+      <button class="realtime-filter-btn" onclick="filterQueue('completed',this)">已完成</button>
+    </div>
+    <div id="queueList" style="display:flex;flex-direction:column;gap:8px;"></div>
+  </div>
+
+  <div style="display:grid;grid-template-rows:auto minmax(0,1fr);gap:12px;min-height:0;">
+    <div class="panel">
+      <div class="flex items-start justify-between gap-3">
+        <div style="min-width:0;">
+          <div class="text-muted text-sm">当前项目</div>
+          <div class="page-title" id="rtTitle" style="font-size:18px;">请选择或启动一个审核项目</div>
+          <div class="text-muted text-sm mt-2" id="rtStep">等待审核任务</div>
+        </div>
+        <div class="grid grid-3 gap-2">
+          <div class="panel-soft text-center" style="padding:8px 12px;">
+            <div style="font-size:22px;font-weight:900;color:var(--rose);" id="rtP0">0</div>
+            <div class="text-xs text-muted">P0 严重</div>
+          </div>
+          <div class="panel-soft text-center" style="padding:8px 12px;">
+            <div style="font-size:22px;font-weight:900;color:var(--amber);" id="rtP1">0</div>
+            <div class="text-xs text-muted">P1 一般</div>
+          </div>
+          <div class="panel-soft text-center" style="padding:8px 12px;">
+            <div style="font-size:22px;font-weight:900;color:var(--blue);" id="rtP2">0</div>
+            <div class="text-xs text-muted">P2 建议</div>
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 mt-3">
+        <div class="progress-track flex-1"><div id="rtProgressBar" class="progress-bar" style="width:0;"></div></div>
+        <div id="rtProgressText" class="text-muted text-sm" style="width:40px;text-align:right;">0%</div>
+        <button id="rtStartBtn" class="btn btn-primary btn-sm" onclick="startSelected()"><i class="fas fa-play"></i>开始</button>
+        <button id="rtReportBtn" class="btn btn-green btn-sm hidden" onclick="openSelectedReport()"><i class="fas fa-file-code"></i>报告</button>
+      </div>
+    </div>
+
+    <div class="panel" style="display:flex;flex-direction:column;min-height:0;">
+      <div class="flex items-center justify-between mb-2">
+        <div class="font-semibold"><i class="fas fa-terminal" style="color:var(--accent);margin-right:6px;"></i>实时日志</div>
+        <button class="btn btn-muted btn-sm" onclick="document.getElementById('auditLogs').innerHTML='<div class=text-muted>等待审核日志...</div>'">清空</button>
+      </div>
+      <div id="auditLogs" class="audit-log-box flex-1 overflow-auto rounded p-3" style="min-height:0;">
+        <div class="text-muted">等待审核日志...</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let selectedProjectId = '';
+let qFilter = 'all';
+let projects = [];
+let pollTimer = null;
+
+async function loadProjects() {
+  try { const d = await api('/api/projects'); projects = d.projects||[]; renderQueue(); autoPoll(); }
+  catch(e) { console.error(e); }
+}
+
+function renderQueue() {
+  let filtered = projects;
+  if (qFilter==='active') filtered = projects.filter(p => p.status==='running'||p.status==='queued');
+  else if (qFilter==='eia') filtered = projects.filter(p => p.audit_domain==='eia');
+  else if (qFilter==='acceptance') filtered = projects.filter(p => p.audit_domain==='acceptance');
+  else if (qFilter==='emergency') filtered = projects.filter(p => p.audit_domain==='emergency');
+  else if (qFilter==='completed') filtered = projects.filter(p => p.status==='completed');
+
+  document.getElementById('queueList').innerHTML = filtered.length
+    ? filtered.map(p => `<div class="rt-card ${p.id===selectedProjectId?'active':''}" onclick="selectProject('${p.id}')">
+        <div style="font-weight:700;font-size:13px;color:#0f172a;">${esc(p.name||'未命名')}</div>
+        <div class="flex items-center gap-2 mt-1">
+          <span class="badge badge-uploaded">${p.audit_domain==='eia'?'环评':p.audit_domain==='acceptance'?'验收':'应急'}</span>
+          <span class="text-muted text-xs">${esc(p.step||'待处理')}</span>
+        </div>
+        <div class="flex items-center justify-between mt-2">
+          <span class="badge ${sb(p.status)}">${sl(p.status)}</span>
+          <span class="text-muted text-xs">${Math.round(p.progress||0)}%</span>
+        </div>
+        <div class="progress-track mt-1"><div class="progress-bar" style="width:${p.progress||0}%"></div></div>
+        ${['uploaded','failed','stopped'].includes(p.status)?`<button class="btn btn-primary btn-sm mt-2 w-full" onclick="event.stopPropagation();startAudit('${p.id}')">开始</button>`:''}
+      </div>`).join('')
+    : '<div class="text-center text-muted p-4">暂无项目</div>';
+}
+
+function selectProject(id) {
+  selectedProjectId = id;
+  const p = projects.find(x => x.id===id);
+  if (!p) return;
+  document.getElementById('rtTitle').textContent = p.name||'未命名';
+  document.getElementById('rtStep').textContent = p.step||'等待审核';
+  document.getElementById('rtProgressBar').style.width = (p.progress||0)+'%';
+  document.getElementById('rtProgressText').textContent = Math.round(p.progress||0)+'%';
+  document.getElementById('rtP0').textContent = p.issues?.P0||0;
+  document.getElementById('rtP1').textContent = p.issues?.P1||0;
+  document.getElementById('rtP2').textContent = p.issues?.P2||0;
+  document.getElementById('rtStartBtn').classList.toggle('hidden', !['uploaded','failed','stopped'].includes(p.status));
+  document.getElementById('rtReportBtn').classList.toggle('hidden', !p.report_url);
+  if (p.logs?.length) {
+    document.getElementById('auditLogs').innerHTML = p.logs.map(l =>
+      `<div style="display:grid;grid-template-columns:76px 54px 1fr;gap:8px;padding:4px 0;border-bottom:1px dashed rgba(148,163,184,.15);${l.type==='error'?'color:#b42318;':l.type==='success'?'color:#067647;':''}">
+        <span style="color:var(--muted);">[${l.time}]</span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;min-height:20px;border-radius:999px;padding:1px 7px;font-size:11px;font-weight:900;${l.type==='error'?'background:#ffe4e6;color:#be123c;':l.type==='success'?'background:#dcfce7;color:#047857;':l.type==='warn'?'background:#fef3c7;color:#b45309;':'background:#eef2f7;color:#475569;'}">${l.type==='error'?'错误':l.type==='success'?'完成':l.type==='warn'?'警告':l.type==='step'?'步骤':'信息'}</span>
+        <span>${esc(l.message)}</span>
+      </div>`
+    ).join('');
+  }
+  renderQueue();
+}
+
+async function startAudit(id) {
+  try { await api('/api/projects/'+id+'/start',{method:'POST',body:'{}'}); await loadProjects(); selectProject(id); } catch(e) { alert(e.message); }
+}
+function startSelected() { if (selectedProjectId) startAudit(selectedProjectId); }
+function openSelectedReport() { if (selectedProjectId) window.open('/api/projects/'+selectedProjectId+'/report/view','_blank'); }
+
+function filterQueue(f, btn) {
+  qFilter = f;
+  document.querySelectorAll('#queueFilter button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderQueue();
+}
+
+function autoPoll() {
+  if (pollTimer) return;
+  const sel = projects.find(p => p.id===selectedProjectId);
+  if (sel && sel.status==='running') {
+    pollTimer = setInterval(() => { loadProjects(); }, 5000);
+  }
+}
+
+function esc(s) { return (s||'').replace(/</g,'&lt;'); }
+function sb(s) { return {uploaded:'badge-uploaded',queued:'badge-queued',running:'badge-running',completed:'badge-completed',failed:'badge-failed',stopped:'badge-stopped'}[s]||''; }
+function sl(s) { return {uploaded:'待审核',queued:'排队中',running:'审核中',completed:'已完成',failed:'失败',stopped:'已暂停'}[s]||s; }
+
+loadProjects();
+</script>
+{% endblock %}

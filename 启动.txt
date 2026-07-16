@@ -1,0 +1,17 @@
+在 Windows 启动（你的环境）
+# 1. 进入项目目录
+cd C:\Users\haobo\ai_project\eia-agent
+
+# 2. 安装依赖
+pip install -r backend\requirements.txt
+
+# 3. 知识入库（首次运行，约需 10-30分钟）
+python scripts\ingest_mineru.py
+
+# 4. 启动服务
+cd backend
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# 5. 浏览器访问
+http://localhost:8000
+第一个注册用户即为管理员（默认 3 次审核配额）。之后可以在设置的"大模型 API 配置"中配置智谱/通义/DeepSeek 等 LLM 接口，然后上传环评报告开始审核。

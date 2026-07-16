@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-center justify-between mb-3">
+  <div>
+    <div class="page-title">审核工单</div>
+    <div class="page-subtitle">支持 DOCX、PDF、TXT、MD 格式，上传后进入审核队列</div>
+  </div>
+  <a href="/app/realtime" class="btn btn-primary"><i class="fas fa-clock-rotate-left"></i>进入实时审核</a>
+</div>
+
+<div class="grid" style="grid-template-columns:340px minmax(0,1fr);gap:16px;">
+  <div class="space-y-3">
+    <div class="audit-hero">
+      <div class="font-semibold" style="color:#0f172a;margin-bottom:10px;">选择审核类型</div>
+      <div class="audit-type-grid" id="auditTypeGrid">
+        <button class="audit-type-card active" onclick="setDomain('eia',this)" data-domain="eia"><i class="fas fa-file-lines"></i><span>环评报告审核</span></button>
+        <button class="audit-type-card" onclick="setDomain('acceptance',this)" data-domain="acceptance"><i class="fas fa-clipboard-check"></i><span>竣工环保验收</span></button>
+        <button class="audit-type-card" onclick="setDomain('emergency',this)" data-domain="emergency"><i class="fas fa-triangle-exclamation"></i><span>应急预案审核</span></button>
+      </div>
+
+      <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px;">
+        <div class="font-semibold" style="color:#0f172a;">上传文件</div>
+      </div>
+      <input type="file" id="reportInput" class="hidden" accept=".docx,.pdf,.txt,.md" onchange="uploadSingle(this.files[0])">
+      <div id="dropZone" class="drop-zone mt-3" onclick="document.getElementById('reportInput').click()"
+           ondragover="event.preventDefault()" ondrop="event.preventDefault();handleDrop(event)">
+        <i class="fas fa-cloud-arrow-up" style="font-size:28px;color:var(--accent);margin-bottom:8px;"></i>
+        <div style="font-weight:700;color:#0f172a;">拖拽文件到这里</div>
+        <div class="text-muted text-sm mt-1">或点击选择文件 · 最大 200MB</div>
+      </div>
+      <div class="grid grid-2 gap-2 mt-3">
+        <button class="btn btn-muted" onclick="document.getElementById('reportInput').click()"><i class="fas fa-upload"></i>上传文件</button>
+        <button class="btn btn-primary" onclick="document.getElementById('reportInput').click()"><i class="fas fa-folder-open"></i>上传文件</button>
+      </div>
+      <div id="uploadStatus" class="text-sm mt-2"></div>
+    </div>
+
+    <div class="panel">
+      <div class="font-semibold" style="color:#0f172a;margin-bottom:10px;">审核概览</div>
+      <div class="metric-grid">
+        <div class="metric-card"><b id="auditMetricUploaded">0</b><span>待审核</span></div>
+        <div class="metric-card"><b id="auditMetricRunning">0</b><span>审核中</span></div>
+        <div class="metric-card"><b id="auditMetricDone">0</b><span>已完成</span></div>
+      </div>
+    </div>
+
+    <div class="panel text-sm text-muted">
+      <div class="font-semibold" style="color:#0f172a;margin-bottom:8px;">工作流</div>
+      <div class="space-y-2">
+        <div><i class="fas fa-circle-check" style="color:var(--accent);margin-right:6px;"></i>上传文件进入队列</div>
+        <div><i class="fas fa-circle-play" style="color:var(--blue);margin-right:6px;"></i>点击开始审核</div>
+        <div><i class="fas fa-chart-line" style="color:var(--green);margin-right:6px;"></i>实时查看进度和报告</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <div class="font-semibold" style="color:#0f172a;font-size:16px;">项目列表</div>
+        <div class="text-muted text-xs mt-1">按上传时间排序</div>
+      </div>
+      <button class="btn btn-muted btn-sm" onclick="loadProjects()"><i class="fas fa-rotate"></i>刷新</button>
+    </div>
+    <div id="projectList" class="text-muted">加载中...</div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let auditDomain = 'eia';
+
+function setDomain(d, btn) {
+  auditDomain = d;
+  document.querySelectorAll('#auditTypeGrid .audit-type-card').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function handleDrop(e) {
+  const f = e.dataTransfer.files[0];
+  if (f) uploadSingle(f);
+}
+
+async function uploadSingle(file) {
+  if (!file) return;
+  document.getElementById('uploadStatus').innerHTML = '<span class="text-muted">上传中: '+esc(file.name)+'...</span>';
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('audit_domain', auditDomain);
+  try {
+    const r = await fetch('/api/upload', {method:'POST',body:fd});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail||'上传失败');
+    document.getElementById('uploadStatus').innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> 上传完成: '+esc(d.project.filename)+'</span>';
+    document.getElementById('reportInput').value = '';
+    loadProjects();
+  } catch(e) {
+    document.getElementById('uploadStatus').innerHTML = '<span class="text-p0">'+esc(e.message)+'</span>';
+  }
+}
+
+async function loadProjects() {
+  try {
+    const data = await api('/api/projects');
+    const projects = data.projects || [];
+    document.getElementById('auditMetricUploaded').textContent = projects.filter(p => p.status==='uploaded').length;
+    document.getElementById('auditMetricRunning').textContent = projects.filter(p => p.status==='running'||p.status==='queued').length;
+    document.getElementById('auditMetricDone').textContent = projects.filter(p => p.status==='completed').length;
+
+    document.getElementById('projectList').innerHTML = projects.length ? projects.map(p => `
+      <div class="project-row">
+        <div>
+          <div class="project-title">${esc(p.name||'未命名')}</div>
+          <div class="project-meta">
+            <span class="badge badge-uploaded">${p.audit_domain==='eia'?'环评':p.audit_domain==='acceptance'?'验收':'应急'}</span>
+            ${esc(p.filename)} · ${esc(p.created_at||'')}
+          </div>
+        </div>
+        <div><span class="badge ${sb(p.status)}">${sl(p.status)}</span></div>
+        <div>
+          <div class="progress-track"><div class="progress-bar" style="width:${p.progress||0}%"></div></div>
+          <div class="text-muted text-xs mt-2">${Math.round(p.progress||0)}% · ${esc(p.step||'待审核')}</div>
+        </div>
+        <div class="issue-strip">
+          <span class="issue-pill issue-p0">P0 ${p.issues?.P0||0}</span>
+          <span class="issue-pill issue-p1">P1 ${p.issues?.P1||0}</span>
+          <span class="issue-pill issue-p2">P2 ${p.issues?.P2||0}</span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          ${['uploaded','failed','stopped'].includes(p.status)?`<button class="btn btn-primary btn-sm" onclick="startAudit('${p.id}')"><i class="fas fa-play"></i>加入队列</button>`:''}
+          ${p.report_url?`<a href="/api/projects/${p.id}/report/view" target="_blank" class="btn btn-green btn-sm"><i class="fas fa-file-code"></i>报告</a>`:''}
+          <button class="btn btn-muted btn-sm btn-icon" onclick="delProject('${p.id}')" title="删除"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>
+    `).join('') : '<div style="text-align:center;padding:40px;color:var(--muted);"><i class="fas fa-folder-open" style="font-size:28px;color:var(--accent);display:block;margin-bottom:10px;"></i>暂无审核项目<br><span class="text-sm">上传一份报告后，工单会出现在这里</span></div>';
+  } catch(e) { document.getElementById('projectList').textContent = '加载失败: '+e.message; }
+}
+
+async function startAudit(id) {
+  try { await api('/api/projects/'+id+'/start',{method:'POST',body:'{}'}); loadProjects(); } catch(e) { alert(e.message); }
+}
+async function delProject(id) {
+  if (!confirm('确认删除？')) return;
+  try { await api('/api/projects/'+id,{method:'DELETE'}); loadProjects(); } catch(e) { alert(e.message); }
+}
+
+function esc(s) { return (s||'').replace(/</g,'&lt;'); }
+function sb(s) { return {uploaded:'badge-uploaded',queued:'badge-queued',running:'badge-running',completed:'badge-completed',failed:'badge-failed',stopped:'badge-stopped'}[s]||''; }
+function sl(s) { return {uploaded:'待审核',queued:'排队中',running:'审核中',completed:'已完成',failed:'失败',stopped:'已暂停'}[s]||s; }
+
+loadProjects();
+setInterval(loadProjects, 10000);
+</script>
+{% endblock %}

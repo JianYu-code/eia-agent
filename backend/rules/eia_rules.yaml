@@ -1,0 +1,93 @@
+# 环评报告审核规则
+
+- rule_id: R-STRUCT-001
+  domain: [eia, acceptance, emergency]
+  category: 结构完整性
+  severity: P0
+  title: "环评报告应包含必备章节"
+  check_type: keyword_match
+  check_config:
+    required_chapters:
+      - "前言"
+      - "总则"
+      - "编制依据"
+      - "评价因子"
+      - "评价标准"
+      - "工程分析"
+      - "环境现状调查与评价"
+      - "环境影响预测与评价"
+      - "环境保护措施及其可行性论证"
+      - "环境影响经济损益分析"
+      - "环境管理与监测计划"
+      - "环境影响评价结论"
+  law_ref: "《建设项目环境影响评价技术导则 总纲》（HJ 2.1-2016）"
+
+- rule_id: R-STD-001
+  domain: [eia, acceptance, emergency]
+  category: 标准引用
+  severity: P0
+  title: "报告引用的标准应为现行有效版本"
+  check_type: cross_reference
+  check_config:
+    pattern: "(GB|GB/T|HJ|HJ/T|环发|环办|国环规)\\s*[\\d.\\-—]+"
+  law_ref: "《标准化法》《生态环境标准管理办法》"
+
+- rule_id: R-SRC-001
+  domain: [eia, acceptance]
+  category: 源强核算
+  severity: P0
+  title: "污染源识别应完整，不得遗漏可能的评价因子"
+  check_type: llm_judge
+  check_config:
+    knowledge_query: "{行业} 源强核算 评价因子 污染因子"
+  law_ref: "污染源源强核算技术指南"
+
+- rule_id: R-SRC-002
+  domain: [eia, acceptance]
+  category: 源强核算
+  severity: P0
+  title: "污染源源强核算方法应符合技术指南规定的优先次序"
+  check_type: llm_judge
+  check_config:
+    knowledge_query: "{行业} 源强核算 方法 优先次序"
+  law_ref: "污染源源强核算技术指南"
+
+- rule_id: R-SRC-003
+  domain: [eia, acceptance]
+  category: 源强核算
+  severity: P1
+  title: "采用类比法时应进行类比条件分析"
+  check_type: llm_judge
+  check_config:
+    conditions: ["原料类别相同成分差异≤10%", "辅料类型相同", "生产工艺相同", "产品类型相同", "规模差异≤30%"]
+  law_ref: "《污染源源强核算技术指南 准则》（HJ 884-2018）"
+
+- rule_id: R-CLS-001
+  domain: [eia]
+  category: 分类管理
+  severity: P0
+  title: "建设项目环评等级判定应符合分类管理名录规定"
+  check_type: llm_judge
+  check_config:
+    knowledge_query: "建设项目环境影响评价分类管理名录 2021"
+  law_ref: "《建设项目环境影响评价分类管理名录（2021年版）》"
+
+- rule_id: R-MSR-001
+  domain: [eia, acceptance]
+  category: 污染防治
+  severity: P1
+  title: "污染治理措施应符合可行技术指南要求"
+  check_type: llm_judge
+  check_config:
+    knowledge_query: "{污染类型} 污染防治 可行技术"
+  law_ref: "污染防治可行技术指南"
+
+- rule_id: R-EVL-001
+  domain: [eia]
+  category: 评价等级
+  severity: P0
+  title: "环境影响评价工作等级判定应符合导则规定"
+  check_type: llm_judge
+  check_config:
+    knowledge_query: "{环境要素} 评价等级 判定"
+  law_ref: "环境影响评价技术导则"

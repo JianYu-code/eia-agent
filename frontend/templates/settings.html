@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-title">大模型 API 配置</div>
+<div class="page-subtitle">管理多套 LLM Profile，切换启用的问答审核模型。支持智谱、OpenRouter、硅基流动等。</div>
+
+<div style="display:grid;grid-template-columns:320px minmax(0,1fr);gap:16px;">
+  <div class="panel" style="overflow-y:auto;max-height:calc(100vh - 200px);">
+    <div class="flex items-center justify-between mb-3">
+      <div class="font-semibold" style="color:#0f172a;">配置列表</div>
+      <button class="btn btn-primary btn-sm" onclick="newProfile()"><i class="fas fa-plus"></i>新增</button>
+    </div>
+    <div id="profileList" style="display:flex;flex-direction:column;gap:8px;"></div>
+  </div>
+
+  <div class="panel">
+    <div class="font-semibold mb-3" style="color:#0f172a;">编辑配置</div>
+    <input type="hidden" id="llmProfileId">
+    <div class="grid grid-2 gap-3">
+      <div><label class="text-muted text-sm">配置 ID</label><input class="input" id="llmId" placeholder="如 zhipu-glm-4-flash"></div>
+      <div><label class="text-muted text-sm">名称</label><input class="input" id="llmName" placeholder="显示名称"></div>
+      <div><label class="text-muted text-sm">Base URL</label><input class="input" id="llmUrl" placeholder="https://open.bigmodel.cn/api/paas/v4"></div>
+      <div><label class="text-muted text-sm">模型</label><input class="input" id="llmModel" placeholder="glm-4-flash"></div>
+      <div><label class="text-muted text-sm">API Key</label><input class="input" type="password" id="llmKey" placeholder="留空不修改"></div>
+      <div><label class="text-muted text-sm">用途</label>
+        <select class="input" id="llmPurpose"><option value="audit">问答审核</option><option value="vision_review">视觉审核</option></select>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 mt-3">
+      <label class="text-sm"><input type="checkbox" id="llmPool" checked> 并发池</label>
+      <span class="text-muted text-sm">重试:<input class="input" type="number" id="llmRetries" value="3" style="width:60px;display:inline;margin-left:4px;"></span>
+    </div>
+    <div class="flex items-center gap-2 mt-3">
+      <button class="btn btn-primary" onclick="saveConfig(true)"><i class="fas fa-floppy-disk"></i>保存并启用</button>
+      <button class="btn btn-muted" onclick="saveConfig(false)"><i class="fas fa-floppy-disk"></i>保存</button>
+      <button class="btn btn-muted" onclick="testConfig()"><i class="fas fa-plug"></i>测试连接</button>
+    </div>
+    <div id="configMsg" class="text-sm mt-2"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let profiles = [], selectedId = '';
+async function load() {
+  try { const d = await api('/api/admin/llm-config'); profiles = d.profiles||[]; renderList(); } catch(e) {}
+}
+function renderList() {
+  document.getElementById('profileList').innerHTML = profiles.length
+    ? profiles.map(p => `<div class="llm-card ${p.id===selectedId?'active':''}" onclick="selectProfile('${p.id}')">
+        <div class="flex items-start justify-between"><div class="font-semibold" style="color:#0f172a;">${esc(p.name)}</div><span class="badge ${p.active?'badge-running':'badge-uploaded'}">${p.active?'启用':'未启用'}</span></div>
+        <div class="text-muted text-sm mt-1">${esc(p.model)} · ${p.purpose==='vision_review'?'视觉审核':'问答审核'}</div>
+        <div class="text-muted text-xs mt-1">${p.api_key_configured?'Key已配置':'未配置 Key'} · pool:${p.pool_enabled?'开':'关'}</div>
+      </div>`).join('')
+    : '<div class="text-muted text-sm p-4 text-center">暂无配置，点击新增创建第一个 LLM 配置</div>';
+}
+function selectProfile(id) {
+  selectedId = id; const p = profiles.find(x => x.id===id);
+  if (!p) return;
+  document.getElementById('llmProfileId').value = p.id;
+  document.getElementById('llmId').value = p.id; document.getElementById('llmName').value = p.name;
+  document.getElementById('llmUrl').value = p.base_url; document.getElementById('llmModel').value = p.model;
+  document.getElementById('llmPurpose').value = p.purpose||'audit'; document.getElementById('llmPool').checked = p.pool_enabled!==false;
+  document.getElementById('llmRetries').value = p.max_retries||3; document.getElementById('llmKey').value = '';
+  document.getElementById('configMsg').textContent = p.api_key_configured ? 'API Key 已配置' : '未配置 API Key';
+  renderList();
+}
+function newProfile() {
+  selectedId = ''; ['llmProfileId','llmId','llmName','llmUrl','llmModel','llmKey'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('llmPurpose').value='audit'; document.getElementById('llmPool').checked=true; document.getElementById('llmRetries').value=3;
+  document.getElementById('configMsg').textContent='新增配置，保存后生效'; renderList();
+}
+async function saveConfig(activate) {
+  try {
+    const body = {action:'save',id:document.getElementById('llmId').value.trim(),name:document.getElementById('llmName').value.trim(),base_url:document.getElementById('llmUrl').value.trim(),model:document.getElementById('llmModel').value.trim(),api_key:document.getElementById('llmKey').value,purpose:document.getElementById('llmPurpose').value,pool_enabled:document.getElementById('llmPool').checked,max_retries:parseInt(document.getElementById('llmRetries').value)||3,activate:activate};
+    const d = await api('/api/admin/llm-config',{method:'POST',body:JSON.stringify(body)});
+    profiles = d.profiles||[]; if (d.saved_id) selectProfile(d.saved_id);
+    renderList(); document.getElementById('configMsg').innerHTML = '<span class="text-success">'+(activate?'已保存并启用':'已保存')+'</span>';
+  } catch(e) { document.getElementById('configMsg').innerHTML = '<span class="text-p0">'+e.message+'</span>'; }
+}
+async function testConfig() {
+  try {
+    document.getElementById('configMsg').textContent='正在测试...';
+    const d = await api('/api/admin/llm-config/test',{method:'POST',body:JSON.stringify({base_url:document.getElementById('llmUrl').value.trim(),model:document.getElementById('llmModel').value.trim(),api_key:document.getElementById('llmKey').value})});
+    document.getElementById('configMsg').innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> 连接成功: '+d.reply+'</span>';
+  } catch(e) { document.getElementById('configMsg').innerHTML = '<span class="text-p0">'+e.message+'</span>'; }
+}
+function esc(s) { return (s||'').replace(/</g,'&lt;'); }
+load();
+</script>
+{% endblock %}

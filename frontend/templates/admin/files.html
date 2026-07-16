@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-center justify-between mb-3">
+  <div>
+    <div class="page-title">知识库管理</div>
+    <div class="page-subtitle">管理已索引的环境标准文件。支持增量同步，废止文件保留但加标记。</div>
+  </div>
+  <div class="flex items-center gap-2">
+    <button class="btn btn-primary" onclick="doSync()"><i class="fas fa-rotate"></i>增量同步</button>
+    <button class="btn btn-muted" onclick="doDetect()"><i class="fas fa-magnifying-glass"></i>检测废止</button>
+    <button class="btn btn-muted" onclick="load()"><i class="fas fa-refresh"></i>刷新</button>
+  </div>
+</div>
+
+<div class="grid grid-4 gap-3 mb-3" id="kbStats">
+  <div class="metric-card"><b id="kbCount">-</b><span>索引条目</span></div>
+  <div class="metric-card"><b id="kbFiles">-</b><span>源文件数</span></div>
+  <div class="metric-card"><b id="kbName">-</b><span>知识库名称</span></div>
+  <div class="metric-card"><b id="kbModel">-</b><span>向量模型</span></div>
+</div>
+
+<div class="panel mb-3">
+  <div class="font-semibold mb-3" style="color:#0f172a;">检索测试</div>
+  <div class="flex gap-2 mb-3">
+    <input class="input" id="kbQuery" placeholder="输入关键词测试检索，如：HJ 2.1 总纲" onkeydown="if(event.key==='Enter')searchKB()">
+    <button class="btn btn-primary" onclick="searchKB()"><i class="fas fa-search"></i>搜索</button>
+  </div>
+  <div id="kbResults"></div>
+</div>
+
+<div class="panel">
+  <div class="flex items-center justify-between mb-3">
+    <div class="font-semibold" style="color:#0f172a;">已废止/过期的文档 <span class="text-muted text-sm" id="outdatedCount"></span></div>
+    <span class="text-muted text-xs">废止文档保留在知识库中，供历史报告对比参考</span>
+  </div>
+  <div id="outdatedList" class="text-muted">加载中...</div>
+</div>
+
+<div id="syncMsg" class="mt-2"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function load() {
+  try {
+    const s = await api('/api/knowledge/stats');
+    document.getElementById('kbCount').textContent = s.count||0;
+    document.getElementById('kbFiles').textContent = s.files||0;
+    document.getElementById('kbName').textContent = s.name||'-';
+    document.getElementById('kbModel').textContent = (s.embedding_model||'').split('/').pop()||'-';
+
+    const o = await api('/api/knowledge/outdated');
+    document.getElementById('outdatedCount').textContent = `(${o.count||0} 个)`;
+    document.getElementById('outdatedList').innerHTML = (o.documents||[]).length
+      ? o.documents.map(d => `<div class="panel-soft mb-2 p-2 flex items-center justify-between">
+          <div>
+            <div class="font-semibold text-sm">${esc(d.title||'未命名')}</div>
+            <div class="text-muted text-xs">${esc(d.category||'')}${d.replaced_by?' · 替代: '+esc(d.replaced_by):''}</div>
+          </div>
+          <span class="badge badge-failed">已废止</span>
+        </div>`).join('')
+      : '<div class="text-muted text-sm">暂无废止文档。更新文件或删除源文件后，旧版本将出现在此处。</div>';
+  } catch(e) {}
+}
+
+async function doSync() {
+  document.getElementById('syncMsg').innerHTML = '<span class="text-muted"><i class="fas fa-circle-notch fa-spin"></i> 增量同步中，只处理变化的文件...</span>';
+  try {
+    await api('/api/knowledge/sync',{method:'POST',body:'{}'});
+    document.getElementById('syncMsg').innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> 同步任务已启动，稍后刷新查看结果</span>';
+  } catch(e) {
+    document.getElementById('syncMsg').innerHTML = '<span class="text-p0">'+e.message+'</span>';
+  }
+}
+
+async function doDetect() {
+  document.getElementById('syncMsg').innerHTML = '<span class="text-muted"><i class="fas fa-circle-notch fa-spin"></i> 正在检测废止/替代关系...</span>';
+  try {
+    await api('/api/knowledge/detect-obsolete',{method:'POST',body:'{}'});
+    document.getElementById('syncMsg').innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> 检测完成，刷新查看结果</span>';
+    setTimeout(load, 2000);
+  } catch(e) {
+    document.getElementById('syncMsg').innerHTML = '<span class="text-p0">'+e.message+'</span>';
+  }
+}
+
+async function searchKB() {
+  const q = document.getElementById('kbQuery').value.trim(); if (!q) return;
+  try {
+    const d = await api('/api/knowledge/search?q='+encodeURIComponent(q));
+    document.getElementById('kbResults').innerHTML = (d.results||[]).length
+      ? d.results.map((r,i) => `<div class="panel-soft mb-2 p-3">
+          <div class="flex items-start justify-between gap-2">
+            <div class="font-semibold" style="font-size:13px;">[${i+1}] ${esc(r.title)}</div>
+            <span>
+              ${r.deprecated ? '<span class="badge badge-failed">已废止</span>' : '<span class="badge badge-completed">现行</span>'}
+            </span>
+          </div>
+          <div class="text-muted text-xs mt-1">${esc(r.relative_path)} · ${esc(r.category||'')}</div>
+          ${r.deprecated && r.replaced_by ? `<div class="text-muted text-xs mt-1">替代标准: ${esc(r.replaced_by)}</div>` : ''}
+          <div class="text-sm mt-2" style="max-height:100px;overflow:hidden;color:#475569;">${esc((r.excerpt||'').substring(0,300))}</div>
+        </div>`).join('')
+      : '<div class="text-muted">未找到结果</div>';
+  } catch(e) { document.getElementById('kbResults').innerHTML = '<span class="text-p0">'+e.message+'</span>'; }
+}
+
+function esc(s) { return (s||'').replace(/</g,'&lt;'); }
+load();
+</script>
+{% endblock %}

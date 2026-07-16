@@ -1,0 +1,21 @@
+# 应急预案审核规则
+
+- rule_id: R-EMG-001
+  domain: [emergency]
+  category: 风险识别
+  severity: P0
+  title: "应急预案应完整识别环境风险源"
+  check_type: keyword_match
+  check_config:
+    required_sections: ["风险识别", "风险源", "危险物质", "最大可信事故"]
+  law_ref: "《突发环境事件应急预案管理暂行办法》"
+
+- rule_id: R-EMG-002
+  domain: [emergency]
+  category: 应急措施
+  severity: P0
+  title: "应急预案应包含完整的应急响应措施"
+  check_type: keyword_match
+  check_config:
+    required_sections: ["应急响应", "应急监测", "应急处置", "疏散撤离"]
+  law_ref: "《企事业单位突发环境事件应急预案备案管理办法（试行）》"

@@ -1,0 +1,5 @@
+首次全量入库 → 所有文件 deprecated: false, 6 个字段自动填充
+某标准废止 → 从 output/a 删掉该文件 → python scripts\ingest_mineru.py sync
+           → 自动标记 deprecated: true（保留在知识库中！）
+新标准发布 → 放到 output/a → sync → 自动入库 deprecated: false
+不会丢标签，也不需要手动标注。唯一需要关心的是：原始文件放对目录、文件名保留标准编号。

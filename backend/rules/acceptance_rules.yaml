@@ -1,0 +1,21 @@
+# 竣工环保验收审核规则
+
+- rule_id: R-ACC-001
+  domain: [acceptance]
+  category: 验收依据
+  severity: P0
+  title: "验收监测报告应明确验收依据和验收标准"
+  check_type: keyword_match
+  check_config:
+    required_keywords: ["验收依据", "验收标准", "环评批复"]
+  law_ref: "《建设项目竣工环境保护验收暂行办法》"
+
+- rule_id: R-ACC-002
+  domain: [acceptance]
+  category: 监测方案
+  severity: P1
+  title: "验收监测方案应覆盖全部污染源和污染物"
+  check_type: cross_reference
+  check_config:
+    check_items: ["废气", "废水", "噪声", "固废"]
+  law_ref: "验收监测技术规范"

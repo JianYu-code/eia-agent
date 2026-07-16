@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;height:calc(100vh - var(--header-h) - 60px);">
+  <div class="panel" style="display:flex;flex-direction:column;min-height:0;">
+    <div class="flex items-center justify-between" style="padding-bottom:12px;border-bottom:1px solid var(--line);">
+      <div>
+        <div class="font-semibold" style="color:#0f172a;">知识检索问答</div>
+        <div class="text-muted text-xs mt-1" id="chatStatus">基于环境标准库 · 大模型 RAG</div>
+      </div>
+      <button class="btn btn-muted btn-sm" onclick="clearChat()"><i class="fas fa-trash"></i>清空对话</button>
+    </div>
+    <div id="chatThread" class="chat-thread flex-1" style="padding:16px;overflow-y:auto;">
+      <div style="display:grid;place-items:center;min-height:100%;color:var(--muted);text-align:center;">
+        <div><i class="fas fa-comments" style="font-size:34px;color:var(--accent-dark);margin-bottom:10px;"></i></div>
+        <div class="font-semibold" style="color:#334155;">开始一次知识库对话</div>
+        <div class="text-sm mt-1">可以连续追问，系统会保留最近上下文</div>
+      </div>
+    </div>
+    <div style="padding:12px;border-top:1px solid var(--line);">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;">
+        <textarea id="knowledgeInput" class="input" rows="2" placeholder="例如：废活性炭危废代码怎么判断？" style="resize:none;min-height:48px;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ask();}"></textarea>
+        <button class="btn btn-muted" onclick="searchOnly()"><i class="fas fa-search"></i>检索</button>
+        <button class="btn btn-primary" onclick="ask()" id="askBtn"><i class="fas fa-paper-plane"></i>发送</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="overflow-y:auto;display:flex;flex-direction:column;">
+    <div style="padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:8px;">
+      <div class="font-semibold" style="color:#0f172a;">检索来源</div>
+      <div id="sourceSummary" class="text-muted text-xs mt-1">暂无来源</div>
+    </div>
+    <div id="sourceList" class="flex-1" style="display:flex;flex-direction:column;gap:10px;"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let history = [];
+let busy = false;
+
+async function ask() {
+  const q = document.getElementById('knowledgeInput').value.trim();
+  if (!q || busy) return;
+  busy = true; document.getElementById('askBtn').disabled = true;
+  addMessage('user', q);
+  document.getElementById('knowledgeInput').value = '';
+  const aiId = addMessage('assistant', '正在检索知识库并调用大模型...', true);
+
+  try {
+    const data = await api('/api/knowledge/ask', {method:'POST',body:JSON.stringify({question:q,history:history.slice(-8)})});
+    updateMessage(aiId, (data.answer||''), false, data.mode||'rag');
+    history.push({role:'user',content:q}); history.push({role:'assistant',content:data.answer}); history = history.slice(-10);
+    renderSources(data.sources||[]);
+    document.getElementById('chatStatus').textContent = '大模型 RAG';
+    document.getElementById('sourceSummary').textContent = '已检索到 '+(data.sources||[]).length+' 条来源';
+  } catch(e) {
+    updateMessage(aiId, '调用失败：'+e.message, false);
+    renderSources([]);
+    document.getElementById('chatStatus').textContent = '错误';
+  }
+  busy = false; document.getElementById('askBtn').disabled = false;
+}
+
+async function searchOnly() {
+  const q = document.getElementById('knowledgeInput').value.trim();
+  if (!q) return;
+  try {
+    const data = await api('/api/knowledge/search?q='+encodeURIComponent(q));
+    renderSources(data.results||[]);
+    document.getElementById('sourceSummary').textContent = '已检索到 '+(data.results||[]).length+' 条来源';
+  } catch(e) { document.getElementById('sourceSummary').textContent = '检索失败: '+e.message; }
+}
+
+let lastMsgDiv = null;
+function addMessage(role, content, pending) {
+  const box = document.getElementById('chatThread');
+  if (box.querySelector('.grid.place-items-center')) box.innerHTML = '';
+
+  const div = document.createElement('div');
+  div.className = 'chat-msg ' + role;
+  div.innerHTML = `<div class="chat-avatar"><i class="fas fa-${role==='user'?'user':'brain'}"></i></div>
+    <div class="chat-bubble">${pending?'<i class="fas fa-circle-notch fa-spin"></i> ':''}${esc(content)}</div>`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  const id = 'msg_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+  div.id = id;
+  return id;
+}
+
+function updateMessage(id, content, pending, mode) {
+  const div = document.getElementById(id);
+  if (!div) return;
+  const bubble = div.querySelector('.chat-bubble');
+  if (bubble) {
+    bubble.innerHTML = esc(content);
+    if (mode) bubble.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-bottom:6px;">' + esc(mode) + '</div>' + bubble.innerHTML;
+  }
+}
+
+function renderSources(sources) {
+  document.getElementById('sourceList').innerHTML = (sources||[]).length
+    ? sources.map((s,i) => `<div class="panel-soft" style="padding:10px;">
+        <div class="flex items-start justify-between gap-2">
+          <div class="font-semibold" style="font-size:13px;color:#0f172a;">${esc(s.title||'未命名')}</div>
+          <span class="badge badge-uploaded">来源${i+1}</span>
+        </div>
+        <div class="text-muted text-xs mt-1">${esc(s.relative_path||'')}${s.category?' · '+esc(s.category):''}</div>
+        <div class="text-sm mt-2" style="max-height:120px;overflow:hidden;color:#475569;">${esc((s.excerpt||'').substring(0,300))}</div>
+      </div>`).join('')
+    : '<div class="text-muted text-sm text-center p-4">暂无来源</div>';
+}
+
+function clearChat() {
+  history = [];
+  document.getElementById('chatThread').innerHTML = `<div style="display:grid;place-items:center;min-height:100%;color:var(--muted);text-align:center;">
+    <div><i class="fas fa-comments" style="font-size:34px;color:var(--accent-dark);margin-bottom:10px;"></i></div>
+    <div class="font-semibold" style="color:#334155;">开始一次知识库对话</div></div>`;
+  document.getElementById('sourceList').innerHTML = '';
+  document.getElementById('sourceSummary').textContent = '暂无来源';
+  document.getElementById('chatStatus').textContent = '基于环境标准库 · 大模型 RAG';
+}
+
+function esc(s) { return (s||'').replace(/</g,'&lt;'); }
+</script>
+{% endblock %}
