@@ -8,7 +8,16 @@ async def check_source_strength(full_text: str, chapters: list[dict]) -> list[di
     issues = []
     profile = await get_active_profile()
 
-    results = search_knowledge("源强核算技术指南 核算方法 优先次序 类比条件 污染因子", top_k=8)
+    industries = []
+    for kw in ["锅炉", "制糖", "淀粉", "农药", "制药", "造纸", "钢铁", "火电", "水泥", "化工", "电镀", "印染", "屠宰", "医院"]:
+        if kw in full_text[:3000]:
+            industries.append(kw)
+
+    if industries:
+        query = f"{' '.join(industries)} 源强核算技术指南 核算方法 优先次序 类比条件 污染因子"
+        results = search_knowledge(query, top_k=8)
+    else:
+        results = search_knowledge("源强核算技术指南 核算方法 优先次序 类比条件 污染因子", top_k=8)
     if not results:
         issues.append(build_issue(
             "R-SRC-000", "P2", "源强核算",
@@ -38,7 +47,10 @@ async def check_source_strength(full_text: str, chapters: list[dict]) -> list[di
 以JSON数组格式输出问题列表，格式如下：
 [{{"severity": "P0/P1/P2", "title": "问题标题", "finding": "具体发现", "law_ref": "法规依据（标准编号）", "suggestion": "修改建议"}}]
 
-如果没有发现问题，输出空数组 []。只输出JSON，不要其他内容。"""
+如果没有发现问题，输出空数组 []。
+所有引用的标准编号必须与参考标准原文完全一致，不得编造标准号。
+行业源强核算技术指南编号格式为 HJ 数字-年份（如 HJ 984-2018），若不确定具体编号不要强行写。
+只输出JSON，不要任何解释或补充文字。"""
 
     try:
         resp = await chat(prompt, profile=profile)

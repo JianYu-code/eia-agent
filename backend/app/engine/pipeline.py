@@ -56,7 +56,8 @@ async def run_audit_pipeline(project_id: str):
         all_issues = []
 
         for required in REQUIRED_CHAPTERS:
-            found = required in full_text
+            found_in_titles = any(required in ch["title"] for ch in chapters if ch["level"] <= 2)
+            found = found_in_titles or (required in full_text[:5000])
             if not found:
                 all_issues.append(build_issue(
                     rule_id="R-STRUCT-001",

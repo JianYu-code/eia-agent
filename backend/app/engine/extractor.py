@@ -51,16 +51,56 @@ def _extract_docx(path: str) -> dict:
         for p in doc.paragraphs:
             text = p.text.strip()
             if not text:
+                paragraphs.append("")
                 continue
+
             style = (p.style.name if p.style and p.style.name else "").lower()
-            if "heading 1" in style or "标题 1" in style or "标题一" in style or "1.1" in style or "1 heading" in style:
-                paragraphs.append("# " + text)
+            heading_level = 0
+
+            # Layer 1: style name
+            if "heading 1" in style or "标题 1" in style or "1 heading" in style:
+                heading_level = 1
             elif "heading 2" in style or "标题 2" in style or "2 heading" in style:
-                paragraphs.append("## " + text)
+                heading_level = 2
             elif "heading 3" in style or "标题 3" in style or "3 heading" in style:
+                heading_level = 3
+
+            # Layer 2: font size detection (big bold text = heading)
+            if not heading_level:
+                for run in p.runs:
+                    try:
+                        size = run.font.size
+                        if size:
+                            pt = size / 12700  # EMU to pt
+                            if pt >= 14 and run.bold and len(text) < 80:
+                                heading_level = 1
+                                break
+                    except Exception:
+                        continue
+
+            # Layer 3: content pattern match
+            if not heading_level and len(text) < 80:
+                import re
+                cn_patterns = [
+                    re.compile(r"^第[0-9一二三四五六七八九十百]+章\s*(.*)"),
+                    re.compile(r"^[（(][一二三四五六七八九十]+[）)]\s*(.*)"),
+                    re.compile(r"^[一二三四五六七八九十]+[、．，,]\s*(.*)"),
+                    re.compile(r"^\d+(?:\.\d+)*\s+(.+?)(?:\s*\.{3,})?$"),
+                ]
+                for pat in cn_patterns:
+                    if pat.match(text):
+                        heading_level = 2
+                        break
+
+            if heading_level == 1:
+                paragraphs.append("# " + text)
+            elif heading_level == 2:
+                paragraphs.append("## " + text)
+            elif heading_level == 3:
                 paragraphs.append("### " + text)
             else:
                 paragraphs.append(text)
+
         content = "\n".join(paragraphs)
         tables = []
         for table in doc.tables:
