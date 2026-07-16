@@ -22,6 +22,7 @@
         <div class="font-semibold" style="color:#0f172a;">上传文件</div>
       </div>
       <input type="file" id="reportInput" class="hidden" accept=".docx,.pdf,.txt,.md" onchange="uploadSingle(this.files[0])">
+      <input type="file" id="folderInput" class="hidden" webkitdirectory multiple onchange="uploadFolder(this.files)">
       <div id="dropZone" class="drop-zone mt-3" onclick="document.getElementById('reportInput').click()"
            ondragover="event.preventDefault()" ondrop="event.preventDefault();handleDrop(event)">
         <i class="fas fa-cloud-arrow-up" style="font-size:28px;color:var(--accent);margin-bottom:8px;"></i>
@@ -30,7 +31,7 @@
       </div>
       <div class="grid grid-2 gap-2 mt-3">
         <button class="btn btn-muted" onclick="document.getElementById('reportInput').click()"><i class="fas fa-upload"></i>上传文件</button>
-        <button class="btn btn-primary" onclick="document.getElementById('reportInput').click()"><i class="fas fa-folder-open"></i>上传文件</button>
+        <button class="btn btn-muted" onclick="document.getElementById('folderInput').click()"><i class="fas fa-folder-open"></i>上传文件夹</button>
       </div>
       <div id="uploadStatus" class="text-sm mt-2"></div>
     </div>
@@ -105,6 +106,25 @@ async function uploadSingle(file) {
     loadProjects();
   } catch(e) {
     document.getElementById('uploadStatus').innerHTML = '<span class="text-p0">'+esc(e.message)+'</span>';
+  }
+}
+
+async function uploadFolder(files) {
+  if (!files || !files.length) return;
+  document.getElementById('uploadStatus').innerHTML = '<span class="text-muted">上传文件夹中...</span>';
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f, f.webkitRelativePath || f.name);
+  fd.append('folder_name', files[0].webkitRelativePath?.split('/')[0] || 'folder');
+  fd.append('audit_domain', auditDomain);
+  try {
+    const r = await fetch('/api/upload-folder', {method:'POST',body:fd});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail||'上传失败');
+    document.getElementById('uploadStatus').innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> 文件夹上传完成: '+esc(d.project.filename)+'</span>';
+    document.getElementById('folderInput').value = '';
+    loadProjects();
+  } catch(e) {
+    document.getElementById('uploadStatus').innerHTML = '<span class="text-p0">'+e.message+'</span>';
   }
 }
 
