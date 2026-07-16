@@ -1,0 +1,24 @@
+确认域名是否生效
+nslookup hxhb.work
+返回 Cloudflare 的 IP（104.21.x.x 或 172.67.x.x）就说明 DNS 已生效。
+启动服务让同事访问
+两个终端分别运行：
+# 终端 1：启动应用
+cd C:\Users\haobo\ai_project\eia-agent
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# 终端 2：启动 Cloudflare Tunnel
+C:\cloudflared\cloudflared-windows-amd64.exe tunnel run --url http://localhost:8000 eia
+
+把 tunnel 的协议从 QUIC 改为更稳定的 HTTP2：
+C:\cloudflared\cloudflared-windows-amd64.exe tunnel run --protocol http2 --url http://localhost:8000 eia
+HTTP2 通常比 QUIC 更稳定，但延迟稍高一点。
+
+
+然后同事访问 https://hxhb.work 就能用了。
+开机自启
+把这两条命令放到 Windows 启动目录（Win+R → shell:startup）：创建 eia-start.bat：
+@echo off
+start "" /b uvicorn app.main:app --host 0.0.0.0 --port 8000
+timeout /t 5
+start "" /b C:\cloudflared\cloudflared-windows-amd64.exe tunnel run --url http://localhost:8000 eia
