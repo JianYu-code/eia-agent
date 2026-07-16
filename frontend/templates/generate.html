@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-title">智能生成报告</div>
+<div class="page-subtitle">填写项目基本信息，AI 逐章生成完整环评报告，并输出 DOCX 文件</div>
+
+<form id="genForm" onsubmit="doGenerate(event)" style="max-width:900px;">
+  <div class="panel mb-3">
+    <div class="font-semibold mb-2" style="font-size:15px;color:#0f172a;">项目基本信息</div>
+    <div class="grid grid-2 gap-3">
+      <div><label class="text-muted text-sm">项目名称 *</label><input class="input" id="gen_name" placeholder="如：XX公司生物质锅炉建设项目" required></div>
+      <div><label class="text-muted text-sm">建设单位</label><input class="input" id="gen_company" placeholder="如：XX有限公司"></div>
+      <div><label class="text-muted text-sm">建设地点</label><input class="input" id="gen_location" placeholder="如：XX省XX市XX县"></div>
+      <div><label class="text-muted text-sm">建设性质</label><select class="input" id="gen_nature"><option>新建</option><option>改建</option><option>扩建</option><option>技术改造</option></select></div>
+      <div><label class="text-muted text-sm">行业类别</label><input class="input" id="gen_industry" placeholder="如：热力生产和供应业 D4430"></div>
+      <div><label class="text-muted text-sm">总投资（万元）</label><input class="input" id="gen_investment" type="number" placeholder="500"></div>
+      <div><label class="text-muted text-sm">用地面积（m²）</label><input class="input" id="gen_area" type="number" placeholder="5000"></div>
+      <div><label class="text-muted text-sm">环境功能区划</label><input class="input" id="gen_envfunc" placeholder="如：二类环境空气质量功能区、2类声环境功能区"></div>
+      <div><label class="text-muted text-sm">周边敏感目标</label><input class="input" id="gen_sensitive" placeholder="如：厂界外500m范围内无居民区、学校等敏感点"></div>
+    </div>
+  </div>
+
+  <div class="panel mb-3">
+    <div class="font-semibold mb-2" style="font-size:15px;color:#0f172a;">工程概况</div>
+    <div><label class="text-muted text-sm">工程概述 *</label><textarea class="input" id="gen_overview" rows="3" placeholder="简要描述项目建设内容和规模。如：本项目新建1台2.5t/h生物质热水锅炉，配套建设除尘、脱硫、脱硝设施，为原有养鸡场提供冬季供暖..." required></textarea></div>
+    <div class="grid grid-2 gap-3 mt-2">
+      <div><label class="text-muted text-sm">主要原辅材料</label><textarea class="input" id="gen_materials" rows="2" placeholder="如：生物质成型燃料 2000t/a、氧化钙 50t/a、尿素 10t/a..."></textarea></div>
+      <div><label class="text-muted text-sm">主要设备</label><textarea class="input" id="gen_equipment" rows="2" placeholder="如：2.5t/h链条式生物质锅炉、陶瓷多管除尘器、布袋除尘器、SNCR脱硝装置..."></textarea></div>
+    </div>
+    <div class="mt-2"><label class="text-muted text-sm">工艺流程简述</label><textarea class="input" id="gen_process" rows="3" placeholder="如：生物质燃料→上料系统→锅炉燃烧→烟气→多管除尘器→布袋除尘器→脱硫塔→脱硝→烟囱排放..."></textarea></div>
+  </div>
+
+  <div class="panel mb-3">
+    <div class="font-semibold mb-2" style="font-size:15px;color:#0f172a;">污染源及治理措施</div>
+    <div class="grid grid-2 gap-3">
+      <div><label class="text-muted text-sm">废气污染源及治理措施</label><textarea class="input" id="gen_air" rows="3" placeholder="如：锅炉烟气（颗粒物、SO₂、NOₓ、汞及其化合物），经多管除尘+布袋除尘（效率99.5%）+氧化钙脱硫（效率90%）+SNCR脱硝（效率40%）后由35m烟囱排放..."></textarea></div>
+      <div><label class="text-muted text-sm">废水污染源及治理措施</label><textarea class="input" id="gen_water" rows="3" placeholder="如：锅炉循环水排水和软化处理废水，全部回用于灰渣增湿和厂区洒水降尘，不外排..."></textarea></div>
+      <div><label class="text-muted text-sm">固废产生及处置</label><textarea class="input" id="gen_solid" rows="2" placeholder="如：灰渣外售综合利用，废离子交换树脂（HW13）由厂家更换时回收..."></textarea></div>
+      <div><label class="text-muted text-sm">噪声源及控制措施</label><textarea class="input" id="gen_noise" rows="2" placeholder="如：鼓风机、引风机、泵类等设备噪声，采取隔声、减振、厂房屏蔽等措施..."></textarea></div>
+    </div>
+  </div>
+
+  <div class="panel-soft mb-3">
+    <label class="text-muted text-sm">补充说明（上述信息未覆盖的其他内容）</label>
+    <textarea class="input" id="gen_notes" rows="2" placeholder="如：项目不涉及自然保护区、水源保护区等生态敏感区；煤质分析参数（硫分0.5%、灰分8%）；锅炉年运行时间300天..." style="margin-top:4px;"></textarea>
+  </div>
+
+  <div class="flex items-center gap-3">
+    <button type="submit" class="btn btn-primary" id="genBtn"><i class="fas fa-wand-magic-sparkles"></i>开始生成报告</button>
+    <span class="text-muted text-sm">生成过程约需 3-5 分钟，请耐心等待</span>
+  </div>
+  <div id="genStatus" class="mt-3"></div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+async function doGenerate(e) {
+  e.preventDefault();
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> 生成中...';
+
+  const getVal = id => document.getElementById(id).value.trim();
+  const body = {
+    name: getVal('gen_name'), company: getVal('gen_company'),
+    location: getVal('gen_location'), nature: getVal('gen_nature'),
+    industry: getVal('gen_industry'), investment: getVal('gen_investment'),
+    area: getVal('gen_area'), overview: getVal('gen_overview'),
+    materials: getVal('gen_materials'), process: getVal('gen_process'),
+    equipment: getVal('gen_equipment'), air_pollution: getVal('gen_air'),
+    water_pollution: getVal('gen_water'), solid_waste: getVal('gen_solid'),
+    noise: getVal('gen_noise'), sensitive_targets: getVal('gen_sensitive'),
+    env_function: getVal('gen_envfunc'), notes: getVal('gen_notes'),
+  };
+
+  try {
+    const data = await api('/api/generate', {method:'POST',body:JSON.stringify(body)});
+    const pid = data.project_id;
+    document.getElementById('genStatus').innerHTML = `<div class="panel-soft p-3">
+      <div class="font-semibold" style="color:#0f172a;">报告正在生成中...</div>
+      <div class="text-muted text-sm mt-1">项目ID: ${pid}</div>
+      <div class="progress-track mt-2"><div class="progress-bar" id="genProgressBar" style="width:0;"></div></div>
+      <div class="text-muted text-sm mt-2" id="genStep">启动生成...</div>
+      <a href="/api/generate/${pid}/download" class="btn btn-green btn-sm mt-2 hidden" id="genDownload"><i class="fas fa-download"></i>下载 DOCX 报告</a>
+    </div>`;
+
+    let intv = setInterval(async () => {
+      try {
+        const pd = await api('/api/projects');
+        const p = (pd.projects||[]).find(x => x.id === pid);
+        if (!p) return;
+        document.getElementById('genProgressBar').style.width = (p.progress||0)+'%';
+        document.getElementById('genStep').textContent = p.step || '';
+        if (p.status === 'completed') {
+          clearInterval(intv);
+          document.getElementById('genDownload').classList.remove('hidden');
+          btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>开始生成报告';
+        } else if (p.status === 'failed') {
+          clearInterval(intv);
+          document.getElementById('genStep').innerHTML = '<span class="text-p0">生成失败: '+p.step+'</span>';
+          btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>开始生成报告';
+        }
+      } catch(e) {}
+    }, 3000);
+  } catch(e) {
+    document.getElementById('genStatus').innerHTML = '<span class="text-p0">'+e.message+'</span>';
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>开始生成报告';
+  }
+}
+</script>
+{% endblock %}
