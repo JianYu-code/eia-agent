@@ -59,40 +59,42 @@ async def generate_report(project_info: dict, progress_callback=None) -> dict:
     return results
 
 
-def render_docx(project_info: dict, chapters: dict, output_path: str):
-    """将生成的各章节渲染为 DOCX 文件"""
-    from docx import Document
-    from docx.shared import Pt, Cm, RGBColor
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
+def render_markdown(project_info: dict, chapters: dict, output_path: str):
+    lines = []
+    name = project_info.get("name", "建设项目环境影响报告")
+    company = project_info.get("company", "")
+    date_str = datetime.now().strftime("%Y年%m月")
 
-    doc = Document()
-
-    style = doc.styles["Normal"]
-    font = style.font
-    font.name = "宋体"
-    font.size = Pt(12)
-
-    title = doc.add_heading(project_info.get("name", "建设项目环境影响报告"), level=0)
-    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-    doc.add_paragraph(f"建设单位：{project_info.get('company', '')}")
-    doc.add_paragraph(f"编制日期：{datetime.now().strftime('%Y年%m月')}")
+    lines.append(f"# {name}")
+    lines.append("")
+    lines.append(f"**建设单位：** {company}")
+    lines.append(f"**编制日期：** {date_str}")
+    lines.append("")
+    lines.append("---")
+    lines.append("")
 
     for ch in CHAPTERS:
         content = chapters.get(ch["id"], "")
-        if not content or content.startswith("["):
+        if not content or content.startswith("[生成失败"):
+            lines.append(f"## {ch['title']}")
+            lines.append("")
+            lines.append(f"*{content or '（本章节未能生成）'}*")
+            lines.append("")
             continue
-        doc.add_heading(ch["title"], level=1)
 
-        for para_text in content.split("\n"):
-            para_text = para_text.strip()
-            if not para_text:
-                continue
-            if para_text.startswith("#"):
-                continue
-            p = doc.add_paragraph(para_text)
+        content = content.strip()
+        if content.startswith(f"# {ch['title']}") or content.startswith(f"## {ch['title']}"):
+            lines.append(content)
+        else:
+            lines.append(f"## {ch['title']}")
+            lines.append("")
+            lines.append(content)
+        lines.append("")
+        lines.append("")
 
-    doc.save(output_path)
+    md = "\n".join(lines)
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(md)
     return output_path
 
 

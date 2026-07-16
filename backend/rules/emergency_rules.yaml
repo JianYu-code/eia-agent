@@ -2,20 +2,124 @@
 
 - rule_id: R-EMG-001
   domain: [emergency]
-  category: 风险识别
-  severity: P0
-  title: "应急预案应完整识别环境风险源"
+  category: 总则与编制说明
+  severity: P1
+  title: "应急预案应包含编制目的、依据、适用范围和工作原则"
   check_type: keyword_match
   check_config:
-    required_sections: ["风险识别", "风险源", "危险物质", "最大可信事故"]
-  law_ref: "《突发环境事件应急预案管理暂行办法》"
+    required_chapters:
+      - "总则"
+      - "编制目的"
+      - "编制依据"
+    required_keywords:
+      - "应急预案"
+      - "突发环境事件"
+  law_ref: "《企事业单位突发环境事件应急预案备案管理办法（试行）》"
 
 - rule_id: R-EMG-002
   domain: [emergency]
-  category: 应急措施
+  category: 风险识别
   severity: P0
-  title: "应急预案应包含完整的应急响应措施"
+  title: "应急预案应完整识别环境风险源和风险物质"
+  check_type: llm_judge
+  check_config:
+    description: |
+      检查环境风险识别是否完整：
+      1. 是否列出了企业所有可能发生突发环境事件的风险源（生产装置、储罐、管道、运输等）
+      2. 是否对风险物质进行了全面的识别，包括原辅材料、中间产品、产品、危险废物
+      3. 是否计算了每种风险物质的最大存在量与临界量的比值（Q值）
+      4. 是否绘制了风险源分布图
+      5. 是否识别了可能受影响的周边环境敏感目标（居民区、水源地、学校等）
+      不得编造具体标准编号。
+  law_ref: "《企业突发环境事件风险评估指南（试行）》"
+
+- rule_id: R-EMG-003
+  domain: [emergency]
+  category: 风险评估
+  severity: P0
+  title: "应进行环境风险评估并确定风险等级"
+  check_type: llm_judge
+  check_config:
+    description: |
+      检查环境风险评估的完整性：
+      1. 是否分析了最大可信事故及其发生概率
+      2. 是否进行了事故后果预测（泄漏量、影响范围等）
+      3. 是否综合评估后确定了环境风险等级（一般/较大/重大）
+      4. 风险评估方法是否符合相关技术规范
+  law_ref: "《企业突发环境事件风险分级方法》（HJ 941-2018）"
+
+- rule_id: R-EMG-004
+  domain: [emergency]
+  category: 应急组织体系
+  severity: P1
+  title: "应建立完善的应急组织指挥体系"
   check_type: keyword_match
   check_config:
-    required_sections: ["应急响应", "应急监测", "应急处置", "疏散撤离"]
+    required_keywords:
+      - "应急指挥部"
+      - "应急组织"
+      - "职责"
+    required_sections:
+      - "应急组织体系"
+      - "组织机构"
+  law_ref: "《企事业单位突发环境事件应急预案备案管理办法（试行）》"
+
+- rule_id: R-EMG-005
+  domain: [emergency]
+  category: 应急响应
+  severity: P0
+  title: "应急预案应包含分级响应机制和具体处置措施"
+  check_type: llm_judge
+  check_config:
+    description: |
+      检查应急响应措施的完整性：
+      1. 是否设置了分级响应机制（车间级/企业级/社会级），对应不同的应急启动条件
+      2. 针对每种识别出的事故情景，是否给出了具体的处置流程和措施
+      3. 是否包括污染源切断、污染物控制（围堵、收集、转移）、污染物消除等措施
+      4. 是否明确了应急监测方案（监测点位、监测因子、监测频次）
+      5. 是否包括人员疏散、撤离方案
+      6. 应急响应流程是否清晰、可操作（不是泛泛而谈）
+  law_ref: "《突发环境事件应急管理办法》"
+
+- rule_id: R-EMG-006
+  domain: [emergency]
+  category: 应急保障
+  severity: P1
+  title: "应明确应急物资储备和经费保障"
+  check_type: keyword_match
+  check_config:
+    required_keywords:
+      - "应急物资"
+      - "应急装备"
+      - "经费"
+    required_sections:
+      - "应急保障"
+      - "物资"
+  law_ref: "《企事业单位突发环境事件应急预案备案管理办法（试行）》"
+
+- rule_id: R-EMG-007
+  domain: [emergency]
+  category: 预案管理
+  severity: P1
+  title: "应包含预案演练、评估和修订计划"
+  check_type: llm_judge
+  check_config:
+    description: |
+      检查预案管理内容：
+      1. 是否规定了应急演练的频次（每年至少1次）
+      2. 是否明确了演练的形式（桌面演练/实战演练）
+      3. 是否有预案的定期评估和修订机制（至少每3年修订一次）
+      4. 如企业发生重大变化，是否规定了预案修订触发条件
+  law_ref: "《企业事业单位突发环境事件应急预案备案管理办法（试行）》"
+
+- rule_id: R-EMG-008
+  domain: [emergency]
+  category: 附件完整性
+  severity: P2
+  title: "应急预案应包含必要的附件材料"
+  check_type: keyword_match
+  check_config:
+    required_keywords:
+      - "附件"
+      - "附图"
   law_ref: "《企事业单位突发环境事件应急预案备案管理办法（试行）》"

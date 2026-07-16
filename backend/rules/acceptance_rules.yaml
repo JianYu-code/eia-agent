@@ -7,15 +7,88 @@
   title: "验收监测报告应明确验收依据和验收标准"
   check_type: keyword_match
   check_config:
-    required_keywords: ["验收依据", "验收标准", "环评批复"]
-  law_ref: "《建设项目竣工环境保护验收暂行办法》"
+    required_keywords:
+      - "验收依据"
+      - "验收标准"
+      - "环评批复"
+    required_chapters:
+      - "验收依据"
+      - "验收标准"
+  law_ref: "《建设项目竣工环境保护验收暂行办法》（国环规环评〔2017〕4号）"
 
 - rule_id: R-ACC-002
   domain: [acceptance]
   category: 监测方案
-  severity: P1
+  severity: P0
   title: "验收监测方案应覆盖全部污染源和污染物"
-  check_type: cross_reference
+  check_type: llm_judge
   check_config:
-    check_items: ["废气", "废水", "噪声", "固废"]
-  law_ref: "验收监测技术规范"
+    description: |
+      检查验收监测是否覆盖了环评批复中要求的所有污染源：
+      1. 废气：是否监测了所有排气筒，监测因子是否覆盖环评批复的全部污染物
+      2. 废水：是否监测了所有排放口，监测因子是否完整
+      3. 噪声：是否监测了厂界噪声和敏感点噪声
+      4. 固废：是否说明了固废产生量、处置方式和去向
+      5. 监测频次是否符合验收技术规范要求（每天至少3次，连续2天）
+      6. 是否设置了必要的监测点位图
+      不得编造标准编号。
+  law_ref: "《建设项目竣工环境保护验收技术指南 污染影响类》"
+
+- rule_id: R-ACC-003
+  domain: [acceptance]
+  category: 达标分析
+  severity: P0
+  title: "验收监测结果应进行达标分析并与环评要求对比"
+  check_type: llm_judge
+  check_config:
+    description: |
+      检查验收监测数据的达标分析：
+      1. 各污染源排放浓度是否与排放标准限值对比
+      2. 是否与环评报告/环评批复中提出的排放要求对比
+      3. 是否计算了总量控制指标的落实情况（与环评批复的总量对比）
+      4. 如果超标或与环评不符，是否说明了原因和整改措施
+      5. 监测期间的工况是否满足验收要求（生产负荷≥75%）
+  law_ref: "《建设项目竣工环境保护验收暂行办法》"
+
+- rule_id: R-ACC-004
+  domain: [acceptance]
+  category: 环境管理检查
+  severity: P1
+  title: "验收报告应包含环境管理检查内容"
+  check_type: llm_judge
+  check_config:
+    description: |
+      检查验收报告中是否包含环境管理检查：
+      1. 环保设施"三同时"落实情况
+      2. 排污口规范化建设情况
+      3. 环境风险防范措施落实情况
+      4. 环评批复中其他要求的落实情况
+      5. 是否附有必要的照片和支撑材料
+  law_ref: "《建设项目竣工环境保护验收技术指南 污染影响类》"
+
+- rule_id: R-ACC-005
+  domain: [acceptance]
+  category: 验收结论
+  severity: P0
+  title: "验收结论应明确给出是否通过验收的建议"
+  check_type: keyword_match
+  check_config:
+    required_keywords:
+      - "验收结论"
+      - "通过"
+  law_ref: "《建设项目竣工环境保护验收暂行办法》"
+
+- rule_id: R-ACC-006
+  domain: [acceptance]
+  category: 总量控制
+  severity: P1
+  title: "验收应核算污染物排放总量是否满足环评批复要求"
+  check_type: llm_judge
+  check_config:
+    description: |
+      检查总量控制指标落实情况：
+      1. 是否列出了环评批复/排污许可证中规定的总量指标
+      2. 是否根据监测结果核算了实际排放总量
+      3. 实际排放总量是否超过批复的总量指标
+      4. 如超过，是否提出了削减方案
+  law_ref: "《建设项目主要污染物排放总量指标审核及管理暂行办法》"

@@ -41,7 +41,7 @@ async def start_generate(body: GenerateBody, background_tasks: BackgroundTasks, 
     info = body.model_dump()
     project = Project(
         name=info.get("name") or "环评报告生成",
-        filename=f"生成_{info.get('name', '报告')}.docx",
+        filename=f"生成_{info.get('name', '报告')}.md",
         file_path="",
         status="running",
         step="启动生成...",
@@ -62,12 +62,12 @@ async def download_report(project_id: str, db: AsyncSession = Depends(get_db)):
     project = result.scalar_one_or_none()
     if not project or not project.report_path:
         raise HTTPException(status_code=404, detail="报告尚未生成")
-    return FileResponse(project.report_path, filename=f"{project.name}.docx",
-                        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    return FileResponse(project.report_path, filename=f"{project.name}.md",
+                        media_type="text/markdown; charset=utf-8")
 
 
 async def _run_generation(project_id: str, info: dict):
-    from app.engine.report_generator import generate_report, render_docx, CHAPTERS
+    from app.engine.report_generator import generate_report, render_markdown, CHAPTERS
 
     async def update(pct: float, step: str, msg: str, lt="step"):
         async with async_session() as db:
@@ -84,8 +84,8 @@ async def _run_generation(project_id: str, info: dict):
     try:
         chapters = await generate_report(info, progress_callback=update)
 
-        output_path = UPLOAD_DIR / f"generated_{project_id}.docx"
-        render_docx(info, chapters, str(output_path))
+        output_path = UPLOAD_DIR / f"generated_{project_id}.md"
+        render_markdown(info, chapters, str(output_path))
 
         async with async_session() as db:
             r = await db.execute(select(Project).where(Project.id == project_id))
@@ -98,7 +98,7 @@ async def _run_generation(project_id: str, info: dict):
                 p.file_path = str(output_path)
                 p.logs = (p.logs or []) + [
                     {"time": datetime.now().strftime("%H:%M:%S"),
-                     "message": f"报告生成完成，共 {len(chapters)} 个章节", "type": "success"}
+                     "message": f"报告生成完成，共 {len(chapters)} 个章节，已保存为 Markdown", "type": "success"}
                 ]
                 await db.commit()
 

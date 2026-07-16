@@ -75,12 +75,17 @@ async function doGenerate(e) {
   try {
     const data = await api('/api/generate', {method:'POST',body:JSON.stringify(body)});
     const pid = data.project_id;
+    sessionStorage.setItem('gen_project_id', pid);
+    sessionStorage.setItem('gen_status', 'running');
+    window.addEventListener('beforeunload', beforeUnloadWarn);
+
     document.getElementById('genStatus').innerHTML = `<div class="panel-soft p-3">
       <div class="font-semibold" style="color:#0f172a;">报告正在生成中...</div>
       <div class="text-muted text-sm mt-1">项目ID: ${pid}</div>
+      <div class="text-p0 text-sm mt-2" style="font-weight:700;"><i class="fas fa-exclamation-triangle"></i> 请勿离开或刷新页面，生成完成后可下载报告。</div>
       <div class="progress-track mt-2"><div class="progress-bar" id="genProgressBar" style="width:0;"></div></div>
       <div class="text-muted text-sm mt-2" id="genStep">启动生成...</div>
-      <a href="/api/generate/${pid}/download" class="btn btn-green btn-sm mt-2 hidden" id="genDownload"><i class="fas fa-download"></i>下载 DOCX 报告</a>
+      <a href="/api/generate/${pid}/download" class="btn btn-green btn-sm mt-2 hidden" id="genDownload"><i class="fas fa-download"></i>下载 Markdown 报告</a>
     </div>`;
 
     let intv = setInterval(async () => {
@@ -92,10 +97,12 @@ async function doGenerate(e) {
         document.getElementById('genStep').textContent = p.step || '';
         if (p.status === 'completed') {
           clearInterval(intv);
+          clearGenState();
           document.getElementById('genDownload').classList.remove('hidden');
           btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>开始生成报告';
         } else if (p.status === 'failed') {
           clearInterval(intv);
+          clearGenState();
           document.getElementById('genStep').innerHTML = '<span class="text-p0">生成失败: '+p.step+'</span>';
           btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>开始生成报告';
         }
@@ -107,5 +114,61 @@ async function doGenerate(e) {
     btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>开始生成报告';
   }
 }
+
+function beforeUnloadWarn(e) {
+  if (sessionStorage.getItem('gen_status') === 'running') {
+    e.preventDefault();
+  }
+}
+
+function clearGenState() {
+  sessionStorage.removeItem('gen_project_id');
+  sessionStorage.removeItem('gen_status');
+  window.removeEventListener('beforeunload', beforeUnloadWarn);
+}
+
+async function restoreGenState() {
+  const pid = sessionStorage.getItem('gen_project_id');
+  const status = sessionStorage.getItem('gen_status');
+  if (!pid || status !== 'running') return;
+
+  document.getElementById('genStatus').innerHTML = `<div class="panel-soft p-3">
+    <div class="font-semibold" style="color:#0f172a;">恢复生成状态...</div>
+    <div class="text-muted text-sm mt-1">项目ID: ${pid}</div>
+    <div class="text-p0 text-sm mt-2" style="font-weight:700;"><i class="fas fa-exclamation-triangle"></i> 请勿离开或刷新页面。</div>
+    <div class="progress-track mt-2"><div class="progress-bar" id="genProgressBar" style="width:0;"></div></div>
+    <div class="text-muted text-sm mt-2" id="genStep">正在连接...</div>
+    <a href="/api/generate/${pid}/download" class="btn btn-green btn-sm mt-2 hidden" id="genDownload"><i class="fas fa-download"></i>下载 Markdown 报告</a>
+  </div>`;
+
+  document.getElementById('genBtn').disabled = true;
+  document.getElementById('genBtn').innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> 生成中...';
+  window.addEventListener('beforeunload', beforeUnloadWarn);
+
+  let intv = setInterval(async () => {
+    try {
+      const pd = await api('/api/projects');
+      const p = (pd.projects||[]).find(x => x.id === pid);
+      if (!p) return;
+      document.getElementById('genProgressBar').style.width = (p.progress||0)+'%';
+      document.getElementById('genStep').textContent = p.step || '';
+      if (p.status === 'completed') {
+        clearInterval(intv);
+        clearGenState();
+        document.getElementById('genDownload').classList.remove('hidden');
+        document.getElementById('genBtn').disabled = false;
+        document.getElementById('genBtn').innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>开始生成报告';
+      } else if (p.status === 'failed') {
+        clearInterval(intv);
+        clearGenState();
+        document.getElementById('genStep').innerHTML = '<span class="text-p0">生成失败: '+p.step+'</span>';
+        document.getElementById('genBtn').disabled = false;
+        document.getElementById('genBtn').innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>开始生成报告';
+      }
+    } catch(e) {}
+  }, 3000);
+}
+
+restoreGenState();
 </script>
 {% endblock %}
