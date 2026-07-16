@@ -230,3 +230,21 @@ async def stream_audit(project_id: str):
             await asyncio.sleep(1)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@router.get("/projects/{project_id}/extracted-text")
+async def get_extracted_text(project_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    from app.engine.extractor import extract_text
+    text_data = extract_text(project.file_path)
+    full = text_data.get("full_text", "")
+    chapters = text_data.get("chapters", [])
+    return {
+        "length": len(full),
+        "chapter_count": len(chapters),
+        "chapter_titles": [c["title"] for c in chapters[:20]],
+        "preview": full[:3000],
+    }

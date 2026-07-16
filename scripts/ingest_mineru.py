@@ -397,5 +397,4 @@ if __name__ == "__main__":
         index = build_standards_index()
         print(f"标准版本索引已生成，共 {len(index)} 条标准")
     else:
-    else:
         full_ingest()

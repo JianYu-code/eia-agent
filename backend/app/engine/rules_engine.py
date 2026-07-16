@@ -25,7 +25,12 @@ def run_keyword_check(rule: dict, full_text: str) -> list[dict]:
 
     if "required_chapters" in config:
         for ch in config["required_chapters"]:
-            if ch not in full_text:
+            found = (
+                ch in full_text or
+                ch.replace(" ", "") in full_text.replace(" ", "") or
+                ch.replace("与", "") in full_text
+            )
+            if not found:
                 issues.append({
                     "rule_id": rule.get("rule_id", ""),
                     "severity": rule.get("severity", "P2"),

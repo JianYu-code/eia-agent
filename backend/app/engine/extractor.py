@@ -106,7 +106,21 @@ def _extract_docx(path: str) -> dict:
         for table in doc.tables:
             rows = [[cell.text for cell in row.cells] for row in table.rows]
             tables.append(rows)
-        return {"full_text": content, "chapters": _split_chapters(content), "tables": tables}
+
+        chapters = _split_chapters(content)
+        if len(content) < 500 or len(chapters) <= 1 or len(content) < 2000:
+            try:
+                import fitz
+                pymu_doc = fitz.open(path)
+                pymu_text = "\n".join(page.get_text() for page in pymu_doc)
+                pymu_doc.close()
+                if len(pymu_text) > len(content):
+                    content = pymu_text
+                    chapters = _split_chapters(content)
+            except Exception:
+                pass
+
+        return {"full_text": content, "chapters": chapters, "tables": tables}
     except ImportError:
         return _parse_content(f"[DOCX 解析需要 python-docx 库] {path}")
 
