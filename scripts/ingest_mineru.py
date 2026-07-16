@@ -382,7 +382,7 @@ def remove_files(sources: list[str]):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", nargs="?", default="full", choices=["full", "sync", "remove", "detect-obsolete"])
+    parser.add_argument("command", nargs="?", default="full", choices=["full", "sync", "remove", "detect-obsolete", "build-index"])
     parser.add_argument("--sources", nargs="*", default=[], help="要删除的文件路径（remove 命令用）")
     args = parser.parse_args()
 
@@ -392,5 +392,10 @@ if __name__ == "__main__":
         remove_files(args.sources)
     elif args.command == "detect-obsolete":
         detect_and_apply_obsolete()
+    elif args.command == "build-index":
+        from app.engine.standards_index import build_standards_index
+        index = build_standards_index()
+        print(f"标准版本索引已生成，共 {len(index)} 条标准")
+    else:
     else:
         full_ingest()
