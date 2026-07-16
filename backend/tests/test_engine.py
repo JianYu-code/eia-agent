@@ -110,8 +110,13 @@ def test_rules_engine_load_filter():
 
     assert len(rules_report_book) > 0
     assert len(rules_report_table) > 0
-    assert len(rules_report_book) != len(rules_report_table), \
-        f"报告书和报告表规则数应不同: {len(rules_report_book)} vs {len(rules_report_table)}"
+
+    book_ids = [r["rule_id"] for r in rules_report_book]
+    table_ids = [r["rule_id"] for r in rules_report_table]
+    assert "R-STRUCT-001" in book_ids, "报告书规则缺少 R-STRUCT-001"
+    assert "R-STRUCT-001-TABLE" in table_ids, "报告表规则缺少 R-STRUCT-001-TABLE"
+    assert "R-STRUCT-001" not in table_ids, "报告表规则不应包含 R-STRUCT-001"
+    assert "R-STRUCT-001-TABLE" not in book_ids, "报告书规则不应包含 R-STRUCT-001-TABLE"
     print(f"✓ 规则过滤通过 (报告书:{len(rules_report_book)}条, 报告表:{len(rules_report_table)}条)")
 
 

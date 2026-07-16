@@ -125,3 +125,16 @@ async def purge_project(project_id: str, db: AsyncSession = Depends(get_db)):
     await db.execute(delete(Project).where(Project.id == project_id))
     await db.commit()
     return {"message": "已清除"}
+
+
+@router.get("/llm-cache-stats")
+async def llm_cache_stats():
+    from app.engine.llm_cache import stats
+    return stats()
+
+
+@router.post("/llm-cache-clear")
+async def llm_cache_clear():
+    from app.engine.llm_cache import clear
+    clear()
+    return {"message": "LLM 缓存已清除"}

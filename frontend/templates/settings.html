@@ -37,6 +37,16 @@
     <div id="configMsg" class="text-sm mt-2"></div>
   </div>
 </div>
+
+<div class="panel mt-3">
+  <div class="flex items-center justify-between">
+    <div>
+      <div class="font-semibold" style="color:#0f172a;">LLM 缓存</div>
+      <div class="text-muted text-sm mt-1" id="cacheInfo">加载中...</div>
+    </div>
+    <button class="btn btn-muted btn-sm" onclick="clearCache()"><i class="fas fa-trash"></i>清除缓存</button>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -85,6 +95,19 @@ async function testConfig() {
   } catch(e) { document.getElementById('configMsg').innerHTML = '<span class="text-p0">'+e.message+'</span>'; }
 }
 function esc(s) { return (s||'').replace(/</g,'&lt;'); }
+async function loadCacheStats() {
+  try {
+    const d = await api('/api/admin/llm-cache-stats');
+    document.getElementById('cacheInfo').textContent = `已缓存 ${d.entries} 条结果 · ${d.file}`;
+  } catch(e) {}
+}
+async function clearCache() {
+  try {
+    await api('/api/admin/llm-cache-clear', {method:'POST',body:'{}'});
+    document.getElementById('cacheInfo').textContent = '缓存已清除';
+  } catch(e) {}
+}
 load();
+loadCacheStats();
 </script>
 {% endblock %}

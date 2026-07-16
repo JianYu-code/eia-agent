@@ -108,8 +108,15 @@ def run_cross_reference_check(rule: dict, full_text: str, kb_results: list[dict]
 
 
 async def run_llm_check(rule: dict, full_text: str, kb_results: list[dict]) -> list[dict]:
-    """LLM 复杂判断（仅对标记为 llm_judge 的规则）"""
+    """LLM 复杂判断（仅对标记为 llm_judge 的规则）。带缓存：相同报告+规则复用结果"""
     from app.llm.client import chat, get_active_profile
+    from app.engine.llm_cache import get as cache_get, set as cache_set
+
+    rule_id = rule.get("rule_id", "R-LLM-001")
+
+    cached = cache_get(rule_id, full_text)
+    if cached is not None:
+        return cached
 
     profile = await get_active_profile()
     if not profile:
@@ -141,11 +148,12 @@ async def run_llm_check(rule: dict, full_text: str, kb_results: list[dict]) -> l
         if resp.startswith("```"):
             resp = resp.split("```")[1]
         if not resp or resp == "null":
+            cache_set(rule_id, full_text, [])
             return []
         import json
         data = json.loads(resp)
         if isinstance(data, dict) and data.get("title"):
-            return [{
+            result = [{
                 "rule_id": rule.get("rule_id", "R-LLM-001"),
                 "severity": data.get("severity", "P1"),
                 "category": rule.get("category", ""),
@@ -155,6 +163,9 @@ async def run_llm_check(rule: dict, full_text: str, kb_results: list[dict]) -> l
                 "law_ref": data.get("law_ref", rule.get("law_ref", "")),
                 "suggestion": data.get("suggestion", ""),
             }]
+            cache_set(rule_id, full_text, result)
+            return result
+        cache_set(rule_id, full_text, [])
     except Exception:
         pass
 
