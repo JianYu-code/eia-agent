@@ -84,6 +84,11 @@ async def app_settings(request: Request):
     return templates.TemplateResponse("settings.html", {"request": request})
 
 
+@app.get("/app/calculator", response_class=HTMLResponse)
+async def app_calculator(request: Request):
+    return templates.TemplateResponse("calculator.html", {"request": request})
+
+
 @app.get("/app/files", response_class=HTMLResponse)
 async def app_files(request: Request):
     return templates.TemplateResponse("files.html", {"request": request, "active_page": "files"})

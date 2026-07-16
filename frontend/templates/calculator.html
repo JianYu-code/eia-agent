@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-title">污染源强计算</div>
+<div class="page-subtitle">按国家标准公式计算废气/废水/粉尘各污染物排放量</div>
+
+<div class="grid" style="grid-template-columns:300px minmax(0,1fr);gap:16px;align-items:start;">
+  <div class="panel">
+    <div class="font-semibold mb-2" style="color:#0f172a;">计算类型</div>
+    <div class="space-y-1" id="typeList"></div>
+  </div>
+  <div class="panel">
+    <div class="font-semibold mb-3" style="color:#0f172a;" id="calcTitle">燃煤锅炉废气</div>
+    <div id="calcInputs"></div>
+    <button class="btn btn-primary mt-3" onclick="doCalc()"><i class="fas fa-calculator"></i>计算</button>
+    <div id="calcResult" class="mt-3"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const TEMPLATES = {
+  coal_boiler: {
+    name: '燃煤锅炉',
+    icon: 'fa-fire',
+    formula_ref: 'HJ 984 物料衡算法 / GB 13271',
+    inputs: [
+      {id:'B',label:'燃料消耗量 (t/a)',val:'2000',unit:'t/a',tip:'年耗煤量'},
+      {id:'S',label:'收到基硫分 (%)',val:'0.8',unit:'%',tip:'煤质分析报告中的 Sar'},
+      {id:'A',label:'收到基灰分 (%)',val:'15',unit:'%',tip:'煤质分析报告中的 Aar'},
+      {id:'dfh',label:'飞灰比 (%)',val:'15',unit:'%',tip:'链条炉取15-20，流化床取40-50'},
+      {id:'Cfh',label:'飞灰含碳量 (%)',val:'15',unit:'%',tip:'链条炉取15-25'},
+      {id:'eta_SO2',label:'脱硫效率 (%)',val:'90',unit:'%'},
+      {id:'eta_PM',label:'除尘效率 (%)',val:'99.5',unit:'%'},
+      {id:'eta_NOx',label:'脱硝效率 (%)',val:'40',unit:'%'},
+      {id:'K_NOx',label:'NOx产污系数 (kg/t煤)',val:'3.5',unit:'kg/t',tip:'无低氮燃烧取3-4，有低氮取2-2.5'},
+      {id:'C_Hg',label:'煤中汞含量 (mg/kg)',val:'0.15',unit:'mg/kg',tip:'依据煤质报告，典型值0.05-0.3'},
+      {id:'eta_Hg',label:'汞去除效率 (%)',val:'70',unit:'%',tip:'除尘脱硫协同去除60-80%'},
+    ],
+    calc: function(v) {
+      const SO2 = 2 * v.B * (v.S/100) * (1 - v.eta_SO2/100);
+      const PM = v.B * (v.A/100) * (v.dfh/100) * (1 - v.eta_PM/100) / (1 - v.Cfh/100);
+      const NOx = v.B * v.K_NOx * 0.001 * (1 - v.eta_NOx/100);
+      const Hg = v.B * v.C_Hg * 1e-6 * (1 - v.eta_Hg/100);
+      return [
+        {label:'SO₂ 排放量',value:SO2.toFixed(3),unit:'t/a',note:`(1-${v.eta_SO2}%) × 硫转化率`},
+        {label:'颗粒物排放量',value:PM.toFixed(3),unit:'t/a',note:`飞灰比${v.dfh}% × (1-${v.eta_PM}%)`},
+        {label:'NOx 排放量',value:NOx.toFixed(3),unit:'t/a',note:`系数${v.K_NOx}kg/t × (1-${v.eta_NOx}%)`},
+        {label:'汞排放量',value:Hg.toFixed(6),unit:'t/a',note:`${v.C_Hg}mg/kg × (1-${v.eta_Hg}%)`},
+        {label:'烟尘初始产生量',value:(v.B*(v.A/100)*(v.dfh/100)/(1-v.Cfh/100)).toFixed(1),unit:'t/a',note:'除尘前'},
+      ];
+    }
+  },
+  bio_boiler: {
+    name: '生物质锅炉',
+    icon: 'fa-leaf',
+    formula_ref: 'HJ 984 / GB 13271',
+    inputs: [
+      {id:'B',label:'生物质燃料消耗量 (t/a)',val:'1500',unit:'t/a'},
+      {id:'S',label:'收到基硫分 (%)',val:'0.05',unit:'%',tip:'生物质含硫极低'},
+      {id:'A',label:'收到基灰分 (%)',val:'3',unit:'%',tip:'生物质灰分3-5%'},
+      {id:'dfh',label:'飞灰比 (%)',val:'20',unit:'%',tip:'生物质锅炉取20-30'},
+      {id:'Cfh',label:'飞灰含碳量 (%)',val:'10',unit:'%',tip:'生物质取10-15'},
+      {id:'eta_SO2',label:'脱硫效率 (%)',val:'0',unit:'%',tip:'生物质一般不需脱硫'},
+      {id:'eta_PM',label:'除尘效率 (%)',val:'99.5',unit:'%'},
+      {id:'eta_NOx',label:'脱硝效率 (%)',val:'40',unit:'%'},
+      {id:'K_NOx',label:'NOx产污系数 (kg/t)',val:'2.0',unit:'kg/t',tip:'生物质1.5-2.5'},
+    ],
+    calc: function(v) {
+      const SO2 = 2 * v.B * (v.S/100) * (1 - v.eta_SO2/100);
+      const PM = v.B * (v.A/100) * (v.dfh/100) * (1 - v.eta_PM/100) / (1 - v.Cfh/100);
+      const NOx = v.B * v.K_NOx * 0.001 * (1 - v.eta_NOx/100);
+      return [
+        {label:'SO₂ 排放量',value:SO2.toFixed(4),unit:'t/a',note:'生物质含硫低，SO₂极少量'},
+        {label:'颗粒物排放量',value:PM.toFixed(3),unit:'t/a',note:`飞灰比${v.dfh}% × (1-${v.eta_PM}%)`},
+        {label:'NOx 排放量',value:NOx.toFixed(3),unit:'t/a',note:`系数${v.K_NOx}kg/t × (1-${v.eta_NOx}%)`},
+        {label:'烟尘初始产生量',value:(v.B*(v.A/100)*(v.dfh/100)/(1-v.Cfh/100)).toFixed(1),unit:'t/a',note:'除尘前'},
+      ];
+    }
+  },
+  gas_boiler: {
+    name: '燃气锅炉',
+    icon: 'fa-wind',
+    formula_ref: 'HJ 984 / GB 13271 / 产排污系数手册',
+    inputs: [
+      {id:'Q',label:'天然气消耗量 (万m³/a)',val:'500',unit:'万m³/a'},
+      {id:'K_SO2',label:'SO₂产污系数 (kg/万m³)',val:'4.0',unit:'kg/万m³',tip:'天然气含硫按200mg/m³计，取4.0'},
+      {id:'K_NOx',label:'NOx产污系数 (kg/万m³)',val:'18.71',unit:'kg/万m³',tip:'无低氮燃烧取18.71，有低氮取6.0-9.0'},
+      {id:'K_PM',label:'颗粒物产污系数 (kg/万m³)',val:'2.86',unit:'kg/万m³'},
+      {id:'eta_NOx',label:'脱硝效率 (%)',val:'0',unit:'%',tip:'燃气锅炉一般仅靠低氮燃烧'},
+    ],
+    calc: function(v) {
+      return [
+        {label:'SO₂ 排放量',value:(v.Q*v.K_SO2*0.001).toFixed(4),unit:'t/a',note:`${v.K_SO2}kg/万m³ × ${v.Q}万m³`},
+        {label:'NOx 排放量',value:(v.Q*v.K_NOx*0.001*(1-v.eta_NOx/100)).toFixed(3),unit:'t/a',note:`${v.K_NOx}kg/万m³ × (1-${v.eta_NOx}%)`},
+        {label:'颗粒物排放量',value:(v.Q*v.K_PM*0.001).toFixed(4),unit:'t/a',note:`${v.K_PM}kg/万m³ × ${v.Q}万m³`},
+      ];
+    }
+  },
+  wastewater: {
+    name: '废水污染物',
+    icon: 'fa-droplet',
+    formula_ref: 'HJ 884 物料衡算法 / 排污系数法',
+    inputs: [
+      {id:'Q',label:'废水排放量 (m³/a)',val:'5000',unit:'m³/a'},
+      {id:'C_COD',label:'COD排放浓度 (mg/L)',val:'300',unit:'mg/L'},
+      {id:'C_NH3',label:'氨氮排放浓度 (mg/L)',val:'25',unit:'mg/L'},
+      {id:'C_SS',label:'SS排放浓度 (mg/L)',val:'100',unit:'mg/L'},
+    ],
+    calc: function(v) {
+      const COD = v.Q * v.C_COD * 1e-6;
+      const NH3 = v.Q * v.C_NH3 * 1e-6;
+      const SS = v.Q * v.C_SS * 1e-6;
+      return [
+        {label:'COD 排放量',value:COD.toFixed(3),unit:'t/a',note:`${v.C_COD}mg/L × ${v.Q}m³ × 10⁻⁶`},
+        {label:'氨氮排放量',value:NH3.toFixed(3),unit:'t/a',note:`${v.C_NH3}mg/L × ${v.Q}m³ × 10⁻⁶`},
+        {label:'SS 排放量',value:SS.toFixed(3),unit:'t/a',note:`${v.C_SS}mg/L × ${v.Q}m³ × 10⁻⁶`},
+      ];
+    }
+  },
+  fugitive_dust: {
+    name: '堆场/装卸粉尘',
+    icon: 'fa-wind',
+    formula_ref: 'HJ 2.2 附录 / 扬尘计算公式',
+    inputs: [
+      {id:'T',label:'物料装卸量 (t/a)',val:'5000',unit:'t/a'},
+      {id:'U',label:'平均风速 (m/s)',val:'2.5',unit:'m/s',tip:'当地气象站年均风速'},
+      {id:'M',label:'物料含水率 (%)',val:'5',unit:'%',tip:'含水率越高起尘越小'},
+      {id:'H',label:'装卸落差 (m)',val:'2',unit:'m'},
+      {id:'eta',label:'抑尘效率 (%)',val:'80',unit:'%',tip:'洒水80-90%，封闭料场95-99%'},
+    ],
+    calc: function(v) {
+      const E0 = 0.0016 * (v.U/2.2)**3 * (1 - v.M/100) * v.H**1.3 * v.T;
+      const E = E0 * (1 - v.eta/100);
+      return [
+        {label:'起尘量（未抑尘）',value:E0.toFixed(3),unit:'t/a',note:`风速${v.U}m/s × 落差${v.H}m`},
+        {label:'排放量（抑尘后）',value:E.toFixed(3),unit:'t/a',note:`(1-${v.eta}%)`},
+        {label:'削减量',value:(E0-E).toFixed(3),unit:'t/a'},
+      ];
+    }
+  }
+};
+
+let currentType = 'coal_boiler';
+
+function renderTypes() {
+  const box = document.getElementById('typeList');
+  box.innerHTML = Object.entries(TEMPLATES).map(([k,v]) => `
+    <button class="btn btn-sm ${k===currentType?'btn-primary':'btn-muted'} w-full" style="justify-content:flex-start;min-height:44px;"
+      onclick="switchType('${k}')"><i class="fas ${v.icon}"></i> ${v.name}</button>
+  `).join('');
+}
+
+function switchType(key) {
+  currentType = key;
+  const t = TEMPLATES[key];
+  document.getElementById('calcTitle').textContent = t.name + '废气';
+  document.getElementById('calcResult').innerHTML = '';
+
+  let html = '';
+  for (const inp of t.inputs) {
+    html += `<div class="mb-2">
+      <label class="text-muted text-sm">${inp.label} <span class="text-xs">${inp.tip||''}</span></label>
+      <div class="flex items-center gap-2">
+        <input class="input" id="inp_${inp.id}" type="number" step="any" value="${inp.val}" style="max-width:200px;">
+        <span class="text-muted text-sm">${inp.unit}</span>
+      </div>
+    </div>`;
+  }
+  document.getElementById('calcInputs').innerHTML = html;
+  renderTypes();
+}
+
+function doCalc() {
+  const t = TEMPLATES[currentType];
+  const vals = {};
+  for (const inp of t.inputs) {
+    vals[inp.id] = parseFloat(document.getElementById('inp_'+inp.id).value) || 0;
+  }
+  const results = t.calc(vals);
+
+  const rows = results.map(r => `<tr>
+    <td style="font-weight:700;">${r.label}</td>
+    <td style="font-size:18px;font-weight:900;color:var(--accent-dark);">${r.value}</td>
+    <td>${r.unit}</td>
+    <td class="text-muted text-xs">${r.note||''}</td>
+  </tr>`).join('');
+
+  document.getElementById('calcResult').innerHTML = `
+    <table class="table">
+      <thead><tr><th>项目</th><th>结果</th><th>单位</th><th>计算说明</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="text-muted text-xs mt-2">依据：${t.formula_ref}</div>`;
+}
+
+switchType(currentType);
+</script>
+{% endblock %}
