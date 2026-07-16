@@ -29,7 +29,7 @@ setup.bat
 ollama pull bge-m3
 
 # 4. 准备数据
-# 将环评五四三 MinerU MD 放到 C:\Users\xxx\Desktop\output\a\
+# MinerU将文档文件处理后的 MD 放到 C:\Users\xxx\Desktop\output\a\
 # 将环保小智文件放到 C:\Users\xxx\环保小智_文档下载\
 # 或修改 backend/app/config.py 中的路径
 
