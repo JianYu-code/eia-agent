@@ -4,68 +4,407 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>恒新环保智能系统</title>
-<link rel="stylesheet" href="/static/css/style.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
-  .hero { background: linear-gradient(135deg,#0f766e 0%,#14b8a6 50%,#0d9488 100%); color:#fff; padding:80px 20px 60px; text-align:center; }
-  .hero h1 { font-size:42px; font-weight:900; margin:0; }
-  .hero p { font-size:18px; opacity:.85; margin:16px 0 0; max-width:600px; margin-left:auto; margin-right:auto; line-height:1.7; }
-  .hero-actions { display:flex; gap:12px; justify-content:center; margin-top:28px; }
-  .hero .btn { padding:12px 24px; font-size:15px; border-radius:8px; }
-  .hero .btn-white { background:#fff; color:#0f766e; font-weight:800; }
-  .hero .btn-ghost { background:transparent; color:#fff; border:2px solid rgba(255,255,255,.5); }
-  .section { max-width:1100px; margin:0 auto; padding:60px 20px; }
-  .section h2 { text-align:center; font-size:28px; font-weight:900; color:#0f172a; margin-bottom:32px; }
-  .cap-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
-  .cap-card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:22px; box-shadow:var(--shadow-sm); transition:all .2s; }
-  .cap-card:hover { transform:translateY(-3px); border-color:#99f6e4; box-shadow:0 20px 40px rgba(15,23,42,.08); }
-  .cap-card i { width:40px; height:40px; border-radius:10px; display:grid; place-items:center; font-size:18px; margin-bottom:14px; }
-  .green i { background:#d1fae5; color:#059669; }
-  .blue i { background:#dbeafe; color:#2563eb; }
-  .amber i { background:#fef3c7; color:#d97706; }
-  .rose i { background:#ffe4e6; color:#e11d48; }
-  .cap-card h3 { margin:0; font-size:16px; font-weight:900; color:#0f172a; }
-  .cap-card p { margin:8px 0 0; color:var(--muted); font-size:13px; line-height:1.65; }
-  .footer { text-align:center; padding:40px 20px; color:var(--muted); font-size:13px; }
-  @media (max-width:768px) { .cap-grid { grid-template-columns:repeat(2,1fr); } .hero h1 { font-size:28px; } }
+  :root {
+    --accent: #14b8a6;
+    --accent-dark: #0f766e;
+    --text: #172033;
+    --muted: #64748b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", -apple-system, sans-serif;
+    background: #f7fafb;
+    color: var(--text);
+    overflow-x: hidden;
+  }
+
+  /* Hero */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(160deg, #0b1f2a 0%, #0f3d3a 40%, #0f766e 70%, #0d4036 100%);
+    overflow: hidden;
+    color: #fff;
+    padding: 80px 20px;
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(20,184,166,.18) 0%, transparent 70%);
+    top: -200px; right: -200px;
+    animation: heroGlow 8s ease-in-out infinite;
+  }
+  .hero::after {
+    content: "";
+    position: absolute;
+    width: 400px; height: 400px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(56,189,248,.12) 0%, transparent 70%);
+    bottom: -100px; left: -100px;
+    animation: heroGlow 10s ease-in-out infinite reverse;
+  }
+  @keyframes heroGlow {
+    0%, 100% { transform: scale(1); opacity: .6; }
+    50% { transform: scale(1.2); opacity: 1; }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .hero-content {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    max-width: 720px;
+    animation: fadeUp .8s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 999px;
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #a7f3d0;
+    margin-bottom: 24px;
+    backdrop-filter: blur(8px);
+  }
+  .hero-badge .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #5eead4;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: .5; }
+    50% { opacity: 1; }
+  }
+  .hero h1 {
+    font-size: clamp(36px, 6vw, 64px);
+    font-weight: 950;
+    line-height: 1.1;
+    margin: 0 0 16px;
+    letter-spacing: -.5px;
+    background: linear-gradient(135deg, #fff 0%, #a7f3d0 50%, #5eead4 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero p {
+    font-size: clamp(16px, 2vw, 20px);
+    color: rgba(255,255,255,.72);
+    line-height: 1.7;
+    margin-bottom: 32px;
+  }
+  .hero-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .btn-hero-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 28px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #5eead4, #14b8a6);
+    color: #06211d;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all .25s;
+    box-shadow: 0 8px 32px rgba(20,184,166,.28);
+  }
+  .btn-hero-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 40px rgba(20,184,166,.40);
+  }
+  .btn-hero-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 28px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 800;
+    background: transparent;
+    color: #fff;
+    border: 1.5px solid rgba(255,255,255,.28);
+    cursor: pointer;
+    text-decoration: none;
+    transition: all .25s;
+    backdrop-filter: blur(8px);
+  }
+  .btn-hero-ghost:hover {
+    border-color: rgba(255,255,255,.6);
+    background: rgba(255,255,255,.08);
+  }
+  .hero-metrics {
+    display: flex;
+    gap: 32px;
+    justify-content: center;
+    margin-top: 44px;
+  }
+  .hero-metrics div {
+    text-align: center;
+    border-left: 1px solid rgba(255,255,255,.18);
+    padding-left: 20px;
+  }
+  .hero-metrics div:first-child { border: none; padding-left: 0; }
+  .hero-metrics b {
+    display: block;
+    font-size: 26px;
+    font-weight: 950;
+    color: #fff;
+  }
+  .hero-metrics span {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    color: rgba(255,255,255,.55);
+  }
+
+  /* Sections */
+  .section {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 72px 20px;
+  }
+  .section-title {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  .section-title h2 {
+    font-size: 28px;
+    font-weight: 950;
+    color: var(--text);
+    margin: 0;
+  }
+  .section-title p {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 15px;
+  }
+
+  /* Capability cards */
+  .cap-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .cap-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px;
+    transition: all .25s;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .cap-card.revealed {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .cap-card:nth-child(1) { transition-delay: .05s; }
+  .cap-card:nth-child(2) { transition-delay: .15s; }
+  .cap-card:nth-child(3) { transition-delay: .25s; }
+  .cap-card:nth-child(4) { transition-delay: .35s; }
+  .cap-card:hover {
+    transform: translateY(-4px);
+    border-color: #99f6e4;
+    box-shadow: 0 16px 40px rgba(15,23,42,.08);
+  }
+  .cap-card i {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    font-size: 20px;
+    margin-bottom: 16px;
+  }
+  .cap-card h3 { font-size: 16px; font-weight: 900; color: var(--text); margin: 0 0 8px; }
+  .cap-card p { color: var(--muted); font-size: 13px; line-height: 1.65; margin: 0; }
+  .c-green i { background: #d1fae5; color: #059669; }
+  .c-blue i { background: #dbeafe; color: #2563eb; }
+  .c-amber i { background: #fef3c7; color: #d97706; }
+  .c-rose i { background: #ffe4e6; color: #e11d48; }
+
+  /* Tech stack */
+  .tech-band {
+    background: #0b1f2a;
+    color: #e6f7f4;
+    max-width: none;
+    padding: 64px 20px;
+  }
+  .tech-band h2 { color: #fff; }
+  .tech-band p { color: rgba(230,247,244,.55); }
+  .tech-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    max-width: 1100px;
+    margin: 32px auto 0;
+  }
+  .tech-card {
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 10px;
+    padding: 22px;
+    text-align: center;
+    transition: all .25s;
+  }
+  .tech-card:hover {
+    background: rgba(255,255,255,.1);
+    border-color: rgba(94,234,212,.3);
+    transform: translateY(-2px);
+  }
+  .tech-card i { font-size: 26px; margin-bottom: 12px; display: block; color: #5eead4; }
+  .tech-card b { display: block; font-size: 15px; margin-bottom: 6px; color: #fff; }
+  .tech-card span { font-size: 12px; color: rgba(230,247,244,.55); }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 36px 20px;
+    color: var(--muted);
+    font-size: 12px;
+    background: #f0f2f5;
+  }
+
+  /* Reveal animation */
+  .reveal {
+    transition: opacity .6s ease, transform .6s cubic-bezier(.2,.8,.2,1);
+  }
+
+  @media (max-width: 768px) {
+    .cap-grid, .tech-grid { grid-template-columns: repeat(2, 1fr); }
+    .hero-metrics { gap: 20px; }
+    .hero h1 { font-size: 28px; }
+  }
 </style>
 </head>
-<body style="background:#f7fafb;overflow:auto;min-height:100vh;">
+<body>
 
-<div class="hero">
-  <h1>恒新环保智能系统</h1>
-  <p>AI 驱动的环评智能审核平台。上传报告，自动审核，输出 P0/P1/P2 问题清单和结构化审核报告。基于 3,000+ 环境标准知识库提供 RAG 问答。</p>
-  <div class="hero-actions">
-    <a href="/app/overview" class="btn btn-white"><i class="fas fa-rocket"></i>进入系统</a>
-    <a href="/app/audit" class="btn btn-ghost"><i class="fas fa-upload"></i>上传审核</a>
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-badge">
+      <span class="dot"></span> AI · 知识库 · 工单
+    </div>
+    <h1>恒新环保智能系统</h1>
+    <p>AI 驱动的环评审核与知识管理平台。上传报告自动审核，3000+ 标准知识库 RAG 问答，12,000+ 文件在线检索。</p>
+    <div class="hero-actions">
+      <a href="/app/overview" class="btn-hero-primary" onclick="sessionStorage.setItem('visited','1')">
+        <span>进入工作台</span><i class="fas fa-arrow-right"></i>
+      </a>
+      <a href="#features" class="btn-hero-ghost">
+        <i class="fas fa-chevron-down"></i><span>了解更多</span>
+      </a>
+    </div>
+    <div class="hero-metrics">
+      <div><b>28</b><span>审核规则</span></div>
+      <div><b>3,000+</b><span>标准文档</span></div>
+      <div><b>12,000+</b><span>可检索文件</span></div>
+      <div><b>7步</b><span>审核管线</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<div class="section" id="features">
+  <div class="section-title">
+    <h2>核心能力</h2>
+    <p>一站式环评审核解决方案</p>
+  </div>
+  <div class="cap-grid" id="capGrid">
+    <div class="cap-card c-green reveal">
+      <i class="fas fa-brain"></i>
+      <h3>智能审核引擎</h3>
+      <p>7步审核管线：文本提取→章节完整→标准引用→源强核算→措施审查→分类判定→报告生成。28条规则，支持环评/验收/应急三种类型。</p>
+    </div>
+    <div class="cap-card c-blue reveal">
+      <i class="fas fa-database"></i>
+      <h3>知识库 RAG</h3>
+      <p>3,000+ 环境标准/导则/规范全文向量索引。大模型语义检索，问答带来源引用，支持连续追问。支持增量同步和废止检测。</p>
+    </div>
+    <div class="cap-card c-amber reveal">
+      <i class="fas fa-file-lines"></i>
+      <h3>文件检索中心</h3>
+      <p>12,000+ 环保标准与报告文件，按名称搜索，PDF/DOCX 在线预览。现行/废止标识，31省地方标准一键查阅。</p>
+    </div>
+    <div class="cap-card c-rose reveal">
+      <i class="fas fa-wand-magic-sparkles"></i>
+      <h3>智能报告生成</h3>
+      <p>填写项目基本信息，AI 逐章生成完整环评报告（9章）。知识库自动嵌入标准引用，输出 Markdown，可转 Word。</p>
+    </div>
   </div>
 </div>
 
-<div class="section">
-  <h2>核心能力</h2>
-  <div class="cap-grid">
-    <div class="cap-card green"><i class="fas fa-brain"></i><h3>智能审核引擎</h3><p>7步审核管道：文本提取→章节完整→标准引用→源强核算→措施审查→分类判定→报告生成</p></div>
-    <div class="cap-card blue"><i class="fas fa-database"></i><h3>知识库 RAG</h3><p>3,000+ 环境标准/导则/规范全文索引。语义检索 + 大模型问答，带来源引用</p></div>
-    <div class="cap-card amber"><i class="fas fa-file-lines"></i><h3>文件检索</h3><p>12,000+ 环保标准/报告文件按名称搜索。PDF/DOCX 在线预览，现行/废止标识</p></div>
-    <div class="cap-card rose"><i class="fas fa-chart-bar"></i><h3>审核报告</h3><p>P0/P1/P2 分级问题清单。HTML/DOCX 双格式下载。包含法规依据和修改建议</p></div>
-  </div>
-</div>
-
-<div class="section" style="background:#f0fdfa;max-width:none;padding:60px 0;">
-  <div style="max-width:900px;margin:0 auto;padding:0 20px;">
+<!-- Tech Stack -->
+<div class="tech-band">
+  <div class="section-title">
     <h2>技术架构</h2>
-    <div class="grid grid-3 gap-3" style="margin-top:24px;">
-      <div class="panel-soft text-center" style="padding:20px;"><i class="fas fa-server" style="font-size:24px;color:var(--accent);display:block;margin-bottom:10px;"></i><div style="font-weight:700;">FastAPI + SQLite</div><div class="text-muted text-sm mt-1">异步后端，轻量部署</div></div>
-      <div class="panel-soft text-center" style="padding:20px;"><i class="fas fa-vector-square" style="font-size:24px;color:#2563eb;display:block;margin-bottom:10px;"></i><div style="font-weight:700;">LanceDB 向量库</div><div class="text-muted text-sm mt-1">列式存储，秒级检索</div></div>
-      <div class="panel-soft text-center" style="padding:20px;"><i class="fas fa-robot" style="font-size:24px;color:#d97706;display:block;margin-bottom:10px;"></i><div style="font-weight:700;">Ollama + LLM</div><div class="text-muted text-sm mt-1">本地 bge-m3 向量 + 云端大模型</div></div>
+    <p>轻量部署，开箱即用</p>
+  </div>
+  <div class="tech-grid">
+    <div class="tech-card">
+      <i class="fas fa-server"></i>
+      <b>FastAPI</b>
+      <span>异步后端 · 自动API文档</span>
+    </div>
+    <div class="tech-card">
+      <i class="fas fa-vector-square"></i>
+      <b>LanceDB</b>
+      <span>列式向量库 · 秒级检索</span>
+    </div>
+    <div class="tech-card">
+      <i class="fas fa-robot"></i>
+      <b>Ollama + LLM</b>
+      <span>本地向量 · 云端大模型</span>
+    </div>
+    <div class="tech-card">
+      <i class="fas fa-leaf"></i>
+      <b>内网部署</b>
+      <span>零外网依赖 · 一键安装</span>
     </div>
   </div>
 </div>
 
 <div class="footer">
-  恒新环保智能系统 · 内网部署 · 仅供内部使用<br>
-  <span style="opacity:.6;">基于 FastAPI + LanceDB + Ollama + LangChain 构建</span>
+  恒新环保智能系统 · 内网工作台 · 仅供内部使用
 </div>
 
+<script>
+(function() {
+  if (sessionStorage.getItem('visited') === '1') {
+    window.location.href = '/app/overview';
+    return;
+  }
+
+  const observer = new IntersectionObserver(function(entries) {
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        if (entry.target.classList.contains('reveal')) {
+          entry.target.classList.add('revealed');
+        }
+      }
+    }
+  }, { threshold: 0.15 });
+
+  document.querySelectorAll('.cap-card').forEach(card => observer.observe(card));
+})();
+</script>
 </body>
 </html>
