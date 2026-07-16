@@ -37,7 +37,10 @@
 {% block scripts %}
 <script>
 let history = [];
+try { history = JSON.parse(sessionStorage.getItem('chat_history')||'[]'); if (!Array.isArray(history)) history = []; } catch(e) { history = []; }
 let busy = false;
+
+function saveHistory() { sessionStorage.setItem('chat_history', JSON.stringify(history)); }
 
 async function ask() {
   const q = document.getElementById('knowledgeInput').value.trim();
@@ -51,6 +54,7 @@ async function ask() {
     const data = await api('/api/knowledge/ask', {method:'POST',body:JSON.stringify({question:q,history:history.slice(-8)})});
     updateMessage(aiId, (data.answer||''), false, data.mode||'rag');
     history.push({role:'user',content:q}); history.push({role:'assistant',content:data.answer}); history = history.slice(-10);
+    saveHistory();
     renderSources(data.sources||[]);
     document.getElementById('chatStatus').textContent = '大模型 RAG';
     document.getElementById('sourceSummary').textContent = '已检索到 '+(data.sources||[]).length+' 条来源';
@@ -113,6 +117,8 @@ function renderSources(sources) {
 
 function clearChat() {
   history = [];
+  saveHistory();
+  sessionStorage.removeItem('chat_history');
   document.getElementById('chatThread').innerHTML = `<div style="display:grid;place-items:center;min-height:100%;color:var(--muted);text-align:center;">
     <div><i class="fas fa-comments" style="font-size:34px;color:var(--accent-dark);margin-bottom:10px;"></i></div>
     <div class="font-semibold" style="color:#334155;">开始一次知识库对话</div></div>`;
@@ -122,5 +128,20 @@ function clearChat() {
 }
 
 function esc(s) { return (s||'').replace(/</g,'&lt;'); }
+
+// 恢复历史消息
+(function restoreMessages() {
+  if (history.length === 0) return;
+  const box = document.getElementById('chatThread');
+  if (box.querySelector('.grid.place-items-center')) box.innerHTML = '';
+  for (const msg of history) {
+    const div = document.createElement('div');
+    div.className = 'chat-msg ' + (msg.role || 'user');
+    div.innerHTML = `<div class="chat-avatar"><i class="fas fa-${msg.role==='user'?'user':'brain'}"></i></div>
+      <div class="chat-bubble">${esc(msg.content||'')}</div>`;
+    box.appendChild(div);
+  }
+  box.scrollTop = box.scrollHeight;
+})();
 </script>
 {% endblock %}
