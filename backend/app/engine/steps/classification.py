@@ -1,11 +1,12 @@
 import json
 from app.knowledge.retriever import search_knowledge
-from app.llm.client import chat
+from app.llm.client import chat, get_active_profile
 from app.engine.grader import build_issue
 
 
 async def check_classification(full_text: str) -> list[dict]:
     issues = []
+    profile = await get_active_profile()
 
     results = search_knowledge("建设项目环境影响评价分类管理名录 分类等级 报告书 报告表", top_k=5)
     if not results:
@@ -29,7 +30,7 @@ async def check_classification(full_text: str) -> list[dict]:
 以JSON数组格式输出问题列表。如果没有发现问题输出 []。只输出JSON。"""
 
     try:
-        resp = await chat(prompt)
+        resp = await chat(prompt, profile=profile)
         resp = resp.strip()
         if resp.startswith("```"):
             resp = resp.split("```")[1]

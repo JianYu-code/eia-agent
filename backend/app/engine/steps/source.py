@@ -1,11 +1,12 @@
 import json
 from app.knowledge.retriever import search_knowledge
-from app.llm.client import chat
+from app.llm.client import chat, get_active_profile
 from app.engine.grader import build_issue
 
 
 async def check_source_strength(full_text: str, chapters: list[dict]) -> list[dict]:
     issues = []
+    profile = await get_active_profile()
 
     results = search_knowledge("源强核算技术指南 核算方法 优先次序 类比条件 污染因子", top_k=8)
     if not results:
@@ -40,7 +41,7 @@ async def check_source_strength(full_text: str, chapters: list[dict]) -> list[di
 如果没有发现问题，输出空数组 []。只输出JSON，不要其他内容。"""
 
     try:
-        resp = await chat(prompt)
+        resp = await chat(prompt, profile=profile)
         resp = resp.strip()
         if resp.startswith("```"):
             resp = resp.split("```")[1]

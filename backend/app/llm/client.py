@@ -7,20 +7,11 @@ from app.database import async_session
 from app.models.project import LLMProfile
 
 
-def get_active_profile() -> Optional[LLMProfile]:
+async def get_active_profile() -> Optional[LLMProfile]:
     from sqlalchemy import select
-    import asyncio
-
-    async def _get():
-        async with async_session() as db:
-            r = await db.execute(select(LLMProfile).where(LLMProfile.active == True))
-            return r.scalar_one_or_none()
-
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        return None
-    return loop.run_until_complete(_get())
+    async with async_session() as db:
+        r = await db.execute(select(LLMProfile).where(LLMProfile.active == True))
+        return r.scalar_one_or_none()
 
 
 def build_llm(profile: Optional[LLMProfile] = None) -> ChatOpenAI:

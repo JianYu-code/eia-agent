@@ -1,5 +1,5 @@
 from app.knowledge.retriever import search_knowledge
-from app.llm.client import chat
+from app.llm.client import chat, get_active_profile
 
 RAG_SYSTEM_PROMPT = """你是一个环评审核知识助手。请基于提供的标准文档内容回答用户问题。
 要求：
@@ -40,7 +40,8 @@ async def ask_knowledge(question: str, history: list[dict] = None) -> tuple[str,
 请基于以上文档内容回答用户问题。"""
 
     try:
-        answer = await chat(prompt, system=RAG_SYSTEM_PROMPT)
+        profile = await get_active_profile()
+        answer = await chat(prompt, system=RAG_SYSTEM_PROMPT, profile=profile)
     except Exception as e:
         answer = f"大模型调用失败：{str(e)}。以下为检索到的相关内容摘要：\n\n{context[:2000]}"
 
