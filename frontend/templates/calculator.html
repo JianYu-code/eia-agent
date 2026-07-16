@@ -7,202 +7,170 @@
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.19/dist/katex.min.js"></script>
 
 <div style="display:grid;grid-template-columns:500px minmax(0,1fr);gap:16px;height:calc(100vh - 160px);" id="app">
-  <!-- 左侧列 -->
   <div class="panel" style="overflow-y:auto;display:flex;flex-direction:column;">
-    <div style="margin-bottom:12px;">
-      <div class="flex items-center gap-2 mb-2">
-        <input class="input" id="searchInput" placeholder="搜索公式..." style="max-width:240px;" oninput="renderList()">
-        <select class="input" id="catFilter" onchange="renderList()" style="max-width:160px;">
-          <option value="">全部分类</option>
-        </select>
-      </div>
+    <div class="flex items-center gap-2 mb-2">
+      <input class="input" id="searchInput" placeholder="搜索公式..." style="max-width:240px;" oninput="renderList()">
+      <select class="input" id="catFilter" onchange="renderList()" style="max-width:160px;"><option value="">全部分类</option></select>
     </div>
-    <div id="formulaList" style="display:flex;flex-direction:column;gap:6px;flex:1;overflow-y:auto;"></div>
+    <div id="formulaList" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
   </div>
-
-  <!-- 右侧详情 -->
   <div class="panel" id="detailPanel" style="overflow-y:auto;">
-    <div style="display:grid;place-items:center;min-height:100%;color:var(--muted);">
-      <div style="text-align:center;">
-        <i class="fas fa-calculator" style="font-size:36px;color:var(--accent);margin-bottom:12px;"></i>
-        <div>点击左侧公式卡片查看详情</div>
-      </div>
+    <div style="display:grid;place-items:center;min-height:100%;color:var(--muted);text-align:center;">
+      <i class="fas fa-calculator" style="font-size:36px;color:var(--accent);margin-bottom:12px;"></i>
+      <div>点击左侧公式卡片查看详情</div>
     </div>
   </div>
 </div>
 {% endblock %}
 {% block scripts %}
 <script>
-const FORMULAS = [{
-  id:'so2_coal', cat:'燃料燃烧废气', n:'燃煤锅炉 SO₂', law:'HJ 984 / 物料衡算法',
-  latex:'G_{\\text{SO}_2} = 2 \\times B \\times S \\times (1-\\eta)',
-  desc:'S=收到基硫分(%), B=耗煤量(t/a), η=脱硫效率(%)',
-  vars:[{s:'B',n:'耗煤量',u:'t/a',v:'2000'},{s:'S',n:'硫分 Sar',u:'%',v:'0.8'},{s:'eta',n:'脱硫效率',u:'%',v:'90'}],
-  calc:v=>2*v.B*v.S/100*(1-v.eta/100).toFixed(4), unit:'t/a'
-},{
-  id:'pm_coal', cat:'燃料燃烧废气', n:'燃煤锅炉 烟尘', law:'HJ 984',
-  latex:'G_{\\text{PM}} = \\frac{B \\times A \\times d_{fh} \\times (1-\\eta)}{1 - C_{fh}}',
-  desc:'A=灰分(%), d_fh=飞灰比(15-40%), C_fh=飞灰含碳量(%)',
-  vars:[{s:'B',n:'耗煤量',u:'t/a',v:'2000'},{s:'A',n:'灰分 Aar',u:'%',v:'15'},{s:'dfh',n:'飞灰比',u:'%',v:'15'},{s:'Cfh',n:'飞灰含碳',u:'%',v:'15'},{s:'eta',n:'除尘效率',u:'%',v:'99.5'}],
-  calc:v=>(v.B*v.A/100*v.dfh/100*(1-v.eta/100)/(1-v.Cfh/100)).toFixed(4), unit:'t/a'
-},{
-  id:'nox_coal', cat:'燃料燃烧废气', n:'燃煤锅炉 NOx', law:'HJ 984',
-  latex:'G_{\\text{NO}_x} = B \\times K_{\\text{NO}_x} \\times 10^{-3} \\times (1-\\eta)',
-  desc:'K=产污系数(kg/t煤), η=脱硝效率',
-  vars:[{s:'B',n:'耗煤量',u:'t/a',v:'2000'},{s:'K',n:'NOx系数',u:'kg/t',v:'3.5'},{s:'eta',n:'脱硝效率',u:'%',v:'40'}],
-  calc:v=>(v.B*v.K*0.001*(1-v.eta/100)).toFixed(4), unit:'t/a'
-},{
-  id:'hg_coal', cat:'燃料燃烧废气', n:'燃煤锅炉 汞', law:'GB 13223',
-  latex:'G_{\\text{Hg}} = B \\times C_{\\text{Hg}} \\times 10^{-6} \\times (1-\\eta)',
-  vars:[{s:'B',n:'耗煤量',u:'t/a',v:'2000'},{s:'CHg',n:'汞含量',u:'mg/kg',v:'0.15'},{s:'eta',n:'去除效率',u:'%',v:'70'}],
-  calc:v=>(v.B*v.CHg*1e-6*(1-v.eta/100)).toFixed(6), unit:'t/a'
-},{
-  id:'so2_bio', cat:'燃料燃烧废气', n:'生物质锅炉 SO₂', law:'HJ 984',
-  latex:'G_{\\text{SO}_2} = 2 \\times B \\times S \\times (1-\\eta)',
-  vars:[{s:'B',n:'燃料量',u:'t/a',v:'1500'},{s:'S',n:'硫分',u:'%',v:'0.05'},{s:'eta',n:'脱硫效率',u:'%',v:'0'}],
-  calc:v=>(2*v.B*v.S/100*(1-v.eta/100)).toFixed(4), unit:'t/a'
-},{
-  id:'pm_bio', cat:'燃料燃烧废气', n:'生物质锅炉 烟尘', law:'HJ 984',
-  latex:'G_{\\text{PM}} = \\frac{B \\times A \\times d_{fh} \\times (1-\\eta)}{1 - C_{fh}}',
-  vars:[{s:'B',n:'燃料量',u:'t/a',v:'1500'},{s:'A',n:'灰分',u:'%',v:'3'},{s:'dfh',n:'飞灰比',u:'%',v:'20'},{s:'Cfh',n:'飞灰含碳',u:'%',v:'10'},{s:'eta',n:'除尘效率',u:'%',v:'99.5'}],
-  calc:v=>(v.B*v.A/100*v.dfh/100*(1-v.eta/100)/(1-v.Cfh/100)).toFixed(4), unit:'t/a'
-},{
-  id:'nox_gas', cat:'燃料燃烧废气', n:'天然气锅炉 NOx', law:'产排污系数',
-  latex:'G_{\\text{NO}_x} = Q \\times K_{\\text{NO}_x} \\times 10^{-3} \\times (1-\\eta)',
-  vars:[{s:'Q',n:'用气量',u:'万m³/a',v:'500'},{s:'K',n:'NOx系数',u:'kg/万m³',v:'18.7'},{s:'eta',n:'脱硝效率',u:'%',v:'0'}],
-  calc:v=>(v.Q*v.K*0.001*(1-v.eta/100)).toFixed(4), unit:'t/a'
-},{
-  id:'vocs_org', cat:'工艺废气', n:'有组织 VOCs', law:'物料衡算',
-  latex:'G_{\\text{VOCs}} = Q \\times C \\times t \\times 10^{-9}',
-  vars:[{s:'Q',n:'排气量',u:'m³/h',v:'10000'},{s:'C',n:'浓度',u:'mg/m³',v:'30'},{s:'t',n:'年运行',u:'h/a',v:'4800'}],
-  calc:v=>(v.Q*v.C*v.t*1e-9).toFixed(4), unit:'t/a'
-},{
-  id:'vocs_fug', cat:'工艺废气', n:'无组织 VOCs（系数法）', law:'产排污系数',
-  latex:'G = M \\times k \\times 10^{-3} \\times (1-\\eta)',
-  vars:[{s:'M',n:'原料用量',u:'t/a',v:'50'},{s:'k',n:'排放系数',u:'kg/t',v:'25'},{s:'eta',n:'收集效率',u:'%',v:'90'}],
-  calc:v=>(v.M*v.k*0.001*(1-v.eta/100)).toFixed(4), unit:'t/a'
-},{
-  id:'dust_load', cat:'堆场扬尘', n:'装卸起尘', law:'HJ 2.2 附录 C',
-  latex:'G = 0.0016 \\times (U/2.2)^3 \\times (1-M) \\times H^{1.3} \\times T',
-  vars:[{s:'T',n:'装卸量',u:'t/a',v:'5000'},{s:'U',n:'风速',u:'m/s',v:'2.5'},{s:'M',n:'含水率',u:'%',v:'5'},{s:'H',n:'落差',u:'m',v:'2'}],
-  calc:v=>(0.0016*Math.pow(v.U/2.2,3)*(1-v.M/100)*Math.pow(v.H,1.3)*v.T).toFixed(4), unit:'t/a'
-},{
-  id:'road_dust', cat:'堆场扬尘', n:'道路扬尘', law:'HJ 2.2',
-  latex:'G = e \\times L \\times N \\times (1-\\eta) \\times 10^{-6}',
-  vars:[{s:'e',n:'排放因子',u:'g/(km·辆)',v:'0.2'},{s:'L',n:'单程距离',u:'km',v:'0.5'},{s:'N',n:'年车次',u:'次/a',v:'10000'},{s:'eta',n:'洒水效率',u:'%',v:'80'}],
-  calc:v=>(v.e*v.L*v.N*1e-6*(1-v.eta/100)).toFixed(4), unit:'t/a'
-},{
-  id:'ww_gen', cat:'废水', n:'废水污染物', law:'排污系数法',
-  latex:'G = Q \\times C \\times 10^{-6}',
-  vars:[{s:'Q',n:'排放量',u:'m³/a',v:'5000'},{s:'C_COD',n:'COD浓度',u:'mg/L',v:'300'},{s:'C_NH3',n:'氨氮浓度',u:'mg/L',v:'25'},{s:'C_SS',n:'SS浓度',u:'mg/L',v:'100'}],
-  calc:v=>[['COD',(v.Q*v.C_COD*1e-6).toFixed(3)],['氨氮',(v.Q*v.C_NH3*1e-6).toFixed(3)],['SS',(v.Q*v.C_SS*1e-6).toFixed(3)]], mu:['COD','氨氮','SS'], unit:'t/a'
-},{
-  id:'ash_slag', cat:'固体废物', n:'灰渣产生量', law:'物料衡算',
-  latex:'G_{\\text{灰渣}} = B \\times (A - d_{fh}A)/(1-C_{fh}) + G_{\\text{脱硫}}',
-  vars:[{s:'B',n:'耗煤量',u:'t/a',v:'2000'},{s:'A',n:'灰分',u:'%',v:'15'},{s:'dfh',n:'飞灰比',u:'%',v:'15'},{s:'Cfh',n:'飞灰含碳',u:'%',v:'15'},{s:'Gd',n:'脱硫副产物',u:'t/a',v:'50'}],
-  calc:v=>(v.B*(v.A/100-v.A/100*v.dfh/100)/(1-v.Cfh/100)+v.Gd).toFixed(1), unit:'t/a'
-},{
-  id:'sludge', cat:'固体废物', n:'污泥产生量', law:'HJ 884',
-  latex:'G = Q \\times (C_1 - C_2) \\times 10^{-6} \\div S',
-  vars:[{s:'Q',n:'处理水量',u:'m³/a',v:'5000'},{s:'C1',n:'进水SS',u:'mg/L',v:'200'},{s:'C2',n:'出水SS',u:'mg/L',v:'10'},{s:'S',n:'固含率',u:'%',v:'2'}],
-  calc:v=>(v.Q*(v.C1-v.C2)*1e-6/(v.S/100)).toFixed(2), unit:'t/a'
-},{
-  id:'noise_add', cat:'噪声', n:'噪声叠加', law:'HJ 2.4',
-  latex:'L_{\\text{总}} = 10 \\lg\\left( \\sum 10^{L_i/10} \\right)',
-  vars:[{s:'L1',n:'声源1',u:'dB(A)',v:'85'},{s:'L2',n:'声源2',u:'dB(A)',v:'80'},{s:'L3',n:'声源3',u:'dB(A)',v:'78'}],
-  calc:v=>(10*Math.log10(Math.pow(10,v.L1/10)+Math.pow(10,v.L2/10)+Math.pow(10,v.L3/10))).toFixed(1), unit:'dB(A)'
-},{
-  id:'noise_dist', cat:'噪声', n:'距离衰减', law:'HJ 2.4',
-  latex:'L_2 = L_1 - 20 \\lg(r_2/r_1) - A',
-  vars:[{s:'L1',n:'源强',u:'dB(A)',v:'90'},{s:'r1',n:'源距离',u:'m',v:'1'},{s:'r2',n:'预测距离',u:'m',v:'50'},{s:'A',n:'附加衰减',u:'dB',v:'8'}],
-  calc:v=>(v.L1-20*Math.log10(v.r2/v.r1)-v.A).toFixed(1), unit:'dB(A)'
-}];
+const FORMULAS = [
+// === 源强核算-大气 ===
+{id:'so2_coal',cat:'源强核算-大气',n:'二氧化硫产生量',law:'HJ 984',latex:'G_{\\text{SO}_2}=2BS',vars:[{s:'B',n:'耗煤量',u:'t/a',v:'2000'},{s:'S',n:'硫分Sar',u:'%',v:'0.8'}],calc:v=>2*v.B*v.S/100,unit:'t/a',desc:'S=收到基硫分(%)'},
+{id:'co_prod',cat:'源强核算-大气',n:'一氧化碳产生量',law:'物料衡算',latex:'G_{\\text{CO}}=2330qCQ',vars:[{s:'q',n:'燃料消耗量',u:'t/a',v:'2000'},{s:'C',n:'碳含量',u:'%',v:'60'},{s:'Q',n:'燃烧效率',u:'%',v:'95'}],calc:v=>2330*v.q*v.C/100*v.Q/100*1e-6,unit:'t/a'},
+{id:'eq_stack_h',cat:'源强核算-大气',n:'等效排气筒高度',law:'HJ 2.2',latex:'h=\\sqrt{\\frac{1}{2}(h_1^2+h_2^2)}',vars:[{s:'h1',n:'排气筒1高度',u:'m',v:'30'},{s:'h2',n:'排气筒2高度',u:'m',v:'25'}],calc:v=>Math.sqrt((v.h1*v.h1+v.h2*v.h2)/2),unit:'m'},
+{id:'eq_stack_q',cat:'源强核算-大气',n:'等效排气筒某污染物排放速率',law:'HJ 2.2',latex:'Q=Q_1+Q_2',vars:[{s:'Q1',n:'排气筒1速率',u:'kg/h',v:'10'},{s:'Q2',n:'排气筒2速率',u:'kg/h',v:'8'}],calc:v=>v.Q1+v.Q2,unit:'kg/h'},
+{id:'extrap_high',cat:'源强核算-大气',n:'外推法(高于最高值)',law:'HJ 2.2',latex:'Q=Q_b\\left(\\frac{h}{h_b}\\right)^2',vars:[{s:'Qb',n:'已知排放速率',u:'kg/h',v:'15'},{s:'h',n:'排气筒高度',u:'m',v:'35'},{s:'hb',n:'已知排气筒高度',u:'m',v:'30'}],calc:v=>v.Qb*Math.pow(v.h/v.hb,2),unit:'kg/h'},
+{id:'extrap_low',cat:'源强核算-大气',n:'外推法(低于最低值)',law:'HJ 2.2',latex:'Q=Q_c\\left(\\frac{h}{h_c}\\right)^2',vars:[{s:'Qc',n:'已知排放速率',u:'kg/h',v:'5'},{s:'h',n:'排气筒高度',u:'m',v:'15'},{s:'hc',n:'最低排气筒高度',u:'m',v:'20'}],calc:v=>v.Qc*Math.pow(v.h/v.hc,2),unit:'kg/h'},
+{id:'interpolate',cat:'源强核算-大气',n:'内插法',law:'HJ 2.2',latex:'Q=Q_a+(Q_{a+1}-Q_a)\\frac{h-h_a}{h_{a+1}-h_a}',vars:[{s:'Qa',n:'下界排放速率',u:'kg/h',v:'5'},{s:'Qa1',n:'上界排放速率',u:'kg/h',v:'15'},{s:'h',n:'目标高度',u:'m',v:'25'},{s:'ha',n:'下界高度',u:'m',v:'20'},{s:'ha1',n:'上界高度',u:'m',v:'30'}],calc:v=>v.Qa+(v.Qa1-v.Qa)*(v.h-v.ha)/(v.ha1-v.ha),unit:'kg/h'},
+
+// === 风量计算 ===
+{id:'air_rect',cat:'风量计算',n:'风量计算(矩形)',law:'HJ 984',latex:'L=v\\times F\\times\\beta\\times3600,\\ F=a\\times b',vars:[{s:'v',n:'断面风速',u:'m/s',v:'0.5'},{s:'a',n:'宽度',u:'m',v:'0.8'},{s:'b',n:'高度',u:'m',v:'0.6'},{s:'b2',n:'漏风系数β',u:'',v:'1.1'}],calc:v=>v.v*v.a*v.b*v.b2*3600,unit:'m³/h'},
+{id:'air_round',cat:'风量计算',n:'风量计算(圆形)',law:'HJ 984',latex:'L=v\\times F\\times\\beta\\times3600,\\ F=\\pi r^2',vars:[{s:'v',n:'断面风速',u:'m/s',v:'0.5'},{s:'r',n:'管道半径',u:'m',v:'0.3'},{s:'b2',n:'漏风系数β',u:'',v:'1.1'}],calc:v=>v.v*Math.PI*v.r*v.r*v.b2*3600,unit:'m³/h'},
+{id:'stack_diam',cat:'风量计算',n:'排气筒内径',law:'物料衡算',latex:'r=(V\\div3600\\div v\\div\\pi)^{0.5}\\times2',vars:[{s:'V',n:'风量',u:'m³/h',v:'10000'},{s:'v',n:'出口流速',u:'m/s',v:'15'}],calc:v=>Math.sqrt(v.V/3600/v.v/Math.PI)*2,unit:'m'},
+
+// === 水量计算 ===
+{id:'init_rain',cat:'水量计算',n:'初期雨水',law:'HJ 2.3',latex:'Q=q\\times s\\times t\\times\\Psi',vars:[{s:'q',n:'暴雨强度',u:'L/(s·ha)',v:'200'},{s:'s',n:'汇水面积',u:'ha',v:'1'},{s:'t',n:'降雨历时',u:'min',v:'15'},{s:'psi',n:'径流系数Ψ',u:'',v:'0.7'}],calc:v=>v.q*v.s*v.t*60*0.001*v.psi,unit:'m³'},
+{id:'wash_water',cat:'水量计算',n:'小时清洗用水量计算（连续逆流清洗法）',law:'GB 50136-2011',latex:'q_1=d\\sqrt[n]{\\frac{C_0S}{C_n}}',vars:[{s:'d',n:'镀液带出量',u:'L/h',v:'10'},{s:'C0',n:'镀液金属离子浓度',u:'mg/L',v:'50000'},{s:'Cn',n:'废水金属离子浓度',u:'mg/L',v:'50'},{s:'S',n:'浓度修正系数',u:'',v:'1.2'},{s:'n',n:'清洗槽级数',u:'',v:'3'}],calc:v=>v.d*Math.pow(v.C0*v.S/v.Cn,1/v.n),unit:'L/h'},
+{id:'elec_vol',cat:'水量计算',n:'电解槽有效容积计算',law:'物料衡算',latex:'V=\\frac{Qt}{60}',vars:[{s:'Q',n:'废水流量',u:'m³/h',v:'5'},{s:'t',n:'停留时间',u:'min',v:'30'}],calc:v=>v.Q*v.t/60,unit:'m³'},
+{id:'current_calc',cat:'水量计算',n:'电流计算',law:'物料衡算',latex:'I=\\frac{nK_{Cr}QC}{K_C}',vars:[{s:'n',n:'电解槽数',u:'',v:'1'},{s:'KCr',n:'铬还原系数',u:'',v:'3'},{s:'Q',n:'流量',u:'m³/h',v:'5'},{s:'C',n:'Cr⁶⁺浓度',u:'mg/L',v:'100'},{s:'Kc',n:'电流系数',u:'',v:'1.2'}],calc:v=>v.n*v.KCr*v.Q*v.C/v.Kc,unit:'A'},
+{id:'plate_area',cat:'水量计算',n:'极板面积计算',law:'物料衡算',latex:'F=\\frac{I}{\\alpha M_1M_2J_F}',vars:[{s:'I',n:'电流',u:'A',v:'100'},{s:'alpha',n:'系数α',u:'',v:'1.1'},{s:'M1',n:'系数M₁',u:'',v:'1'},{s:'M2',n:'系数M₂',u:'',v:'1'},{s:'JF',n:'电流密度',u:'A/m²',v:'50'}],calc:v=>v.I/(v.alpha*v.M1*v.M2*v.JF),unit:'m²'},
+{id:'volt_calc',cat:'水量计算',n:'电压计算',law:'物料衡算',latex:'U=nU_1+U_2',vars:[{s:'n',n:'槽数',u:'',v:'1'},{s:'U1',n:'单槽极间电压',u:'V',v:'4'},{s:'U2',n:'导体电压降',u:'V',v:'2'}],calc:v=>v.n*v.U1+v.U2,unit:'V'},
+{id:'volt_drop',cat:'水量计算',n:'极间电压降计算',law:'物料衡算',latex:'U_1=a+bJ_F',vars:[{s:'a',n:'系数a',u:'V',v:'1.5'},{s:'b',n:'系数b',u:'',v:'0.03'},{s:'JF',n:'电流密度',u:'A/m²',v:'50'}],calc:v=>v.a+v.b*v.JF,unit:'V'},
+{id:'space_v',cat:'水量计算',n:'空间流速计算',law:'物料衡算',latex:'\\mu=\\frac{1000E}{CT}',vars:[{s:'E',n:'电流效率',u:'',v:'0.85'},{s:'C',n:'浓度',u:'mg/L',v:'100'},{s:'T',n:'温度系数',u:'',v:'1'}],calc:v=>1000*v.E/(v.C*v.T),unit:'L/(A·h)'},
+{id:'flow_speed',cat:'水量计算',n:'流速计算',law:'物料衡算',latex:'v=\\mu H',vars:[{s:'mu',n:'空间流速',u:'L/(A·h)',v:'8.5'},{s:'H',n:'树脂层高度',u:'m',v:'1.5'}],calc:v=>v.mu*v.H,unit:'m/h'},
+{id:'resin_col_d',cat:'水量计算',n:'交换柱直径计算',law:'物料衡算',latex:'D=2\\sqrt{\\frac{Q}{\\pi v}}',vars:[{s:'Q',n:'设计流量',u:'m³/h',v:'5'},{s:'v',n:'流速',u:'m/h',v:'10'}],calc:v=>2*Math.sqrt(v.Q/(Math.PI*v.v)),unit:'m'},
+{id:'resin_vol',cat:'水量计算',n:'阴(阳)离子交换树脂单柱体积计算',law:'物料衡算',latex:'V=\\frac{Q}{\\mu}\\times1000',vars:[{s:'Q',n:'设计流量',u:'m³/h',v:'5'},{s:'mu',n:'空间流速',u:'L/(A·h)',v:'8.5'}],calc:v=>v.Q/v.mu*1000,unit:'L'},
+{id:'sludge_chem',cat:'水量计算',n:'化学法处理后废水中的污泥浓度计算',law:'物料衡算',latex:'C_{js}=KC_1+2C_2+1.7C_3+C_{SS}',vars:[{s:'K',n:'系数',u:'',v:'1.5'},{s:'C1',n:'重金属浓度',u:'mg/L',v:'100'},{s:'C2',n:'Ca²⁺浓度',u:'mg/L',v:'200'},{s:'C3',n:'Mg²⁺浓度',u:'mg/L',v:'50'},{s:'CSS',n:'SS浓度',u:'mg/L',v:'150'}],calc:v=>v.K*v.C1+2*v.C2+1.7*v.C3+v.CSS,unit:'mg/L'},
+{id:'chem_clean',cat:'水量计算',n:'化学清洗槽有效容积计算',law:'物料衡算',latex:'V=\\frac{dC_0ATm}{C_R}',vars:[{s:'d',n:'镀液带出量',u:'L/h',v:'10'},{s:'C0',n:'初始浓度',u:'mg/L',v:'50000'},{s:'A',n:'面积',u:'m²',v:'10'},{s:'Tm',n:'清洗周期',u:'h',v:'8'},{s:'CR',n:'再生前浓度',u:'mg/L',v:'5000'}],calc:v=>v.d*v.C0*v.A*v.Tm/v.CR,unit:'L'},
+{id:'cu_deposit',cat:'水量计算',n:'电解槽阴极析出铜量计算',law:'物料衡算',latex:'M_X=IK\\eta',vars:[{s:'I',n:'电流',u:'A',v:'100'},{s:'K',n:'铜电化当量',u:'g/(A·h)',v:'1.186'},{s:'eta',n:'电流效率',u:'%',v:'85'}],calc:v=>v.I*v.K*v.eta/100,unit:'g/h'},
+{id:'ag_deposit',cat:'水量计算',n:'电解槽阴极析出银量计算',law:'物料衡算',latex:'M_X=IK\\eta',vars:[{s:'I',n:'电流',u:'A',v:'100'},{s:'K',n:'银电化当量',u:'g/(A·h)',v:'4.025'},{s:'eta',n:'电流效率',u:'%',v:'85'}],calc:v=>v.I*v.K*v.eta/100,unit:'g/h'},
+{id:'ag_cyanide',cat:'水量计算',n:'银(或氰)离子的带出量计算（电解处理法）',law:'物料衡算',latex:'d=\\frac{C_0Sq}{1000}',vars:[{s:'C0',n:'初始浓度',u:'mg/L',v:'1000'},{s:'S',n:'面积',u:'m²',v:'10'},{s:'q',n:'单位带出量',u:'L/m²',v:'0.5'}],calc:v=>v.C0*v.S*v.q/1000,unit:'g'},
+{id:'cu_ion',cat:'水量计算',n:'铜离子带出量计算（电解处理法）',law:'物料衡算',latex:'d=\\frac{C_0Ad_A}{1000}',vars:[{s:'C0',n:'初始浓度',u:'mg/L',v:'1000'},{s:'A',n:'面积',u:'m²',v:'10'},{s:'dA',n:'单位面积带出量',u:'L/m²',v:'0.3'}],calc:v=>v.C0*v.A*v.dA/1000,unit:'g'},
+{id:'elec_power',cat:'水量计算',n:'电能消耗计算',law:'物料衡算',latex:'N=\\frac{IU}{1000Q\\eta}',vars:[{s:'I',n:'电流',u:'A',v:'100'},{s:'U',n:'电压',u:'V',v:'6'},{s:'Q',n:'处理流量',u:'m³/h',v:'5'},{s:'eta',n:'效率',u:'',v:'0.85'}],calc:v=>v.I*v.U/(1000*v.Q*v.eta),unit:'kW·h/m³'},
+{id:'fe_consume',cat:'水量计算',n:'铸铁屑消耗速率（内电解法处理电镀废水）',law:'物料衡算',latex:'V_t=Q_d(1.1C_1+0.9C_i+2.8\\times10^{4-pH})',vars:[{s:'Qd',n:'设计流量',u:'m³/d',v:'50'},{s:'C1',n:'初始COD',u:'mg/L',v:'500'},{s:'Ci',n:'初始色度',u:'倍',v:'200'},{s:'pH',n:'pH值',u:'',v:'3'}],calc:v=>v.Qd*(1.1*v.C1+0.9*v.Ci+2.8*Math.pow(10,4-v.pH)),unit:'g/d'},
+{id:'ultrasonic',cat:'水量计算',n:'超声波清洗法',law:'物料衡算',latex:'\\omega=\\frac{A}{P}',vars:[{s:'A',n:'超声波功率',u:'W',v:'500'},{s:'P',n:'清洗槽面积',u:'m²',v:'0.5'}],calc:v=>v.A/v.P,unit:'W/m²'},
+{id:'resin_loss',cat:'水量计算',n:'废水通过树脂层的水头损失计算',law:'物料衡算',latex:'\\Delta P=K\\cdot\\frac{v\\cdot V\\cdot H}{d_{cp}^2}',vars:[{s:'K',n:'系数',u:'',v:'1.2'},{s:'v',n:'流速',u:'m/h',v:'10'},{s:'V',n:'体积',u:'m³',v:'2'},{s:'H',n:'树脂层高',u:'m',v:'1.5'},{s:'dcp',n:'粒径',u:'mm',v:'0.8'}],calc:v=>v.K*v.v*v.V*v.H/(v.dcp*v.dcp),unit:'m'},
+
+// === 噪声预测 ===
+{id:'geo_div',cat:'噪声预测',n:'几何发散引起的衰减',law:'HJ 2.4',latex:'A_{div}=10\\lg(r/r_0)',vars:[{s:'r',n:'预测距离',u:'m',v:'100'},{s:'r0',n:'参考距离',u:'m',v:'1'}],calc:v=>10*Math.log10(v.r/v.r0),unit:'dB(A)'},
+{id:'noise_pred',cat:'噪声预测',n:'噪声预测值',law:'HJ 2.4',latex:'L_{eq}=10\\lg(10^{0.1L_{eqg}}+10^{0.1L_{eqb}})',vars:[{s:'Leqg',n:'贡献值',u:'dB(A)',v:'65'},{s:'Leqb',n:'背景值',u:'dB(A)',v:'55'}],calc:v=>10*Math.log10(Math.pow(10,0.1*v.Leqg)+Math.pow(10,0.1*v.Leqb)),unit:'dB(A)'},
+{id:'outdoor_geo',cat:'噪声预测',n:'户外声传播的衰减（只考虑几何发散衰减）',law:'HJ 2.4',latex:'L_A(r)=L_A(r_0)-A_{div}',vars:[{s:'LA0',n:'r₀处声级',u:'dB(A)',v:'90'},{s:'r',n:'预测距离',u:'m',v:'50'},{s:'r0',n:'源距离',u:'m',v:'1'}],calc:v=>v.LA0-10*Math.log10(v.r/v.r0),unit:'dB(A)'},
+{id:'point_div',cat:'噪声预测',n:'点声源的几何发散衰减',law:'HJ 2.4',latex:'A_{div}=20\\lg(r/r_0)',vars:[{s:'r',n:'预测距离',u:'m',v:'50'},{s:'r0',n:'参考距离',u:'m',v:'1'}],calc:v=>20*Math.log10(v.r/v.r0),unit:'dB'},
+{id:'point_a5_11',cat:'噪声预测',n:'无指向性点声源几何发散衰减（A.5等效式）',law:'HJ 2.4',latex:'L_A(r)=L_{Aw}-20\\lg r-11',vars:[{s:'LAw',n:'声功率级',u:'dB(A)',v:'100'},{s:'r',n:'预测距离',u:'m',v:'50'}],calc:v=>v.LAw-20*Math.log10(v.r)-11,unit:'dB(A)'},
+{id:'point_a5_8',cat:'噪声预测',n:'无指向性点声源几何发散衰减（A.5等效式）',law:'HJ 2.4',latex:'L_A(r)=L_{Aw}-20\\lg r-8',vars:[{s:'LAw',n:'声功率级',u:'dB(A)',v:'100'},{s:'r',n:'预测距离',u:'m',v:'50'}],calc:v=>v.LAw-20*Math.log10(v.r)-8,unit:'dB(A)'},
+{id:'inf_line',cat:'噪声预测',n:'无限长线声源几何发散衰减',law:'HJ 2.4',latex:'L_P(r)=L_P(r_0)-10\\lg(r/r_0)',vars:[{s:'LP0',n:'r₀处声级',u:'dB(A)',v:'85'},{s:'r',n:'预测距离',u:'m',v:'50'},{s:'r0',n:'源距离',u:'m',v:'1'}],calc:v=>v.LP0-10*Math.log10(v.r/v.r0),unit:'dB(A)'},
+{id:'dir_point',cat:'噪声预测',n:'指向性点声源几何发散衰减',law:'HJ 2.4',latex:'L_p(r)_\\theta=L_w-20\\lg(r)+D_{I\\theta}-11',vars:[{s:'Lw',n:'声功率级',u:'dB(A)',v:'100'},{s:'r',n:'距离',u:'m',v:'50'},{s:'DI',n:'指向性指数',u:'dB',v:'3'}],calc:v=>v.Lw-20*Math.log10(v.r)+v.DI-11,unit:'dB(A)'},
+{id:'basic_out',cat:'噪声预测',n:'户外声传播的衰减（基本公式）',law:'HJ 2.4',latex:'L_P(r)=L_p(r_0)+D_C-(A_{div}+A_{atm}+A_{gr}+A_{bar}+A_{misc})',vars:[{s:'Lpr0',n:'参考声级',u:'dB(A)',v:'90'},{s:'DC',n:'指向性修正',u:'dB',v:'0'},{s:'Adiv',n:'几何发散',u:'dB',v:'34'},{s:'Aatm',n:'大气吸收',u:'dB',v:'2'},{s:'Agr',n:'地面效应',u:'dB',v:'1'},{s:'Abar',n:'屏障衰减',u:'dB',v:'0'},{s:'Am',n:'其他衰减',u:'dB',v:'0'}],calc:v=>v.Lpr0+v.DC-(v.Adiv+v.Aatm+v.Agr+v.Abar+v.Am),unit:'dB(A)'},
+{id:'indoor_out',cat:'噪声预测',n:'室内声源等效室外声源声功率级计算方法',law:'HJ 2.4',latex:'L_{p2}=L_{p1}-(TL+6)',vars:[{s:'Lp1',n:'室内声级',u:'dB(A)',v:'95'},{s:'TL',n:'隔声量',u:'dB',v:'25'}],calc:v=>v.Lp1-(v.TL+6),unit:'dB(A)'},
+{id:'out_wall',cat:'噪声预测',n:'靠近室外围护结构处声压级计算',law:'HJ 2.4',latex:'L_{p2i}(T)=L_{p1i}(T)-(TL_i+6)',vars:[{s:'Lp1i',n:'室内频带声级',u:'dB',v:'90'},{s:'TLi',n:'频带隔声量',u:'dB',v:'28'}],calc:v=>v.Lp1i-(v.TLi+6),unit:'dB'},
+{id:'limit_bar',cat:'噪声预测',n:'有限长薄屏障在点声源声场中引起的衰减',law:'HJ 2.4',latex:'A_{bar}=-10\\lg(\\frac{1}{3+20N_1}+\\frac{1}{3+20N_2}+\\frac{1}{3+20N_3})',vars:[{s:'N1',n:'菲涅尔数1',u:'',v:'1.5'},{s:'N2',n:'菲涅尔数2',u:'',v:'0.8'},{s:'N3',n:'菲涅尔数3',u:'',v:'0.3'}],calc:v=>-10*Math.log10(1/(3+20*v.N1)+1/(3+20*v.N2)+1/(3+20*v.N3)),unit:'dB'},
+{id:'top_diff',cat:'噪声预测',n:'顶端绕射衰减（屏障作无限长处理）',law:'HJ 2.4',latex:'A_{bar}=-10\\lg(\\frac{1}{3+20N_1})',vars:[{s:'N1',n:'菲涅尔数',u:'',v:'1.5'}],calc:v=>-10*Math.log10(1/(3+20*v.N1)),unit:'dB'},
+{id:'double_diff',cat:'噪声预测',n:'双绕射计算',law:'HJ 2.4',latex:'\\delta=[(d_{ss}+d_{sr}+e)^2+a^2]^{1/2}+d',vars:[{s:'dss',n:'源到第一衍射点',u:'m',v:'10'},{s:'dsr',n:'第一到第二衍射点',u:'m',v:'5'},{s:'e',n:'修正值',u:'m',v:'0.5'},{s:'a',n:'高度差',u:'m',v:'2'},{s:'d',n:'基线距离',u:'m',v:'2'}],calc:v=>Math.sqrt(Math.pow(v.dss+v.dsr+v.e,2)+v.a*v.a)+v.d,unit:'m'},
+{id:'atm_att',cat:'噪声预测',n:'大气吸收引起的衰减',law:'HJ 2.4',latex:'A_{atm}=\\frac{\\alpha(r-r_0)}{1000}',vars:[{s:'alpha',n:'大气衰减系数',u:'dB/km',v:'2.5'},{s:'r',n:'预测距离',u:'m',v:'200'},{s:'r0',n:'参考距离',u:'m',v:'1'}],calc:v=>v.alpha*(v.r-v.r0)/1000,unit:'dB'},
+{id:'ground_att',cat:'噪声预测',n:'地面效应引起的衰减（疏松地面传播）',law:'HJ 2.4',latex:'A_{gr}=4.8-\\left(\\frac{2h_m}{r}\\right)\\left(17+\\frac{r}{300}\\right)',vars:[{s:'hm',n:'平均传播高度',u:'m',v:'2'},{s:'r',n:'预测距离',u:'m',v:'100'}],calc:v=>4.8-(2*v.hm/v.r)*(17+v.r/300),unit:'dB'},
+{id:'trans_sound',cat:'噪声预测',n:'透声面积处等效声源的倍频带声功率级计算',law:'HJ 2.4',latex:'L_w=L_{p2}(T)+10\\lg S',vars:[{s:'Lp2',n:'透声处声压级',u:'dB',v:'70'},{s:'S',n:'透声面积',u:'m²',v:'5'}],calc:v=>v.Lp2+10*Math.log10(v.S),unit:'dB'},
+{id:'total_flow',cat:'噪声预测',n:'总车流等效声级',law:'HJ 2.4',latex:'L_{eq}=10\\lg[10^{0.1L_{eq(h)\\text{大}}}+10^{0.1L_{eq(h)\\text{中}}}+10^{0.1L_{eq(h)\\text{小}}}]',vars:[{s:'Lbig',n:'大型车贡献',u:'dB(A)',v:'70'},{s:'Lmid',n:'中型车贡献',u:'dB(A)',v:'65'},{s:'Lsml',n:'小型车贡献',u:'dB(A)',v:'60'}],calc:v=>10*Math.log10(Math.pow(10,0.1*v.Lbig)+Math.pow(10,0.1*v.Lmid)+Math.pow(10,0.1*v.Lsml)),unit:'dB(A)'},
+{id:'train_eq',cat:'噪声预测',n:'列车通过的等效时间（近似计算）',law:'HJ 2.4',latex:'t_{eq,i}=\\frac{l}{v}(1+0.8\\cdot\\frac{l}{d})',vars:[{s:'l',n:'列车长度',u:'m',v:'120'},{s:'v',n:'运行速度',u:'m/s',v:'20'},{s:'d',n:'预测距离',u:'m',v:'30'}],calc:v=>v.l/v.v*(1+0.8*v.l/v.d),unit:'s'},
+{id:'train_eq2',cat:'噪声预测',n:'列车通过的等效时间（精确计算）',law:'HJ 2.4',latex:'t_{eq,i}=\\frac{l_i}{v_i}\\cdot\\frac{2\\arctan(2d/l_i)+\\frac{4d^2+l_i^2}{4dl_i}}{\\pi}',vars:[{s:'li',n:'列车长度',u:'m',v:'120'},{s:'vi',n:'运行速度',u:'m/s',v:'20'},{s:'d',n:'预测距离',u:'m',v:'30'}],calc:v=>v.li/v.vi*(2*Math.atan(2*v.d/v.li)+(4*v.d*v.d+v.li*v.li)/(4*v.d*v.li))/Math.PI,unit:'s'},
+{id:'train_rail',cat:'噪声预测',n:'列车运行噪声几何发散衰减（铁路、地铁、旋转电机）',law:'HJ 2.4',latex:'A_{t,div}=10\\lg\\frac{\\frac{4d_0^2+l^2}{4l}\\arctan(\\frac{2d}{l})+\\frac{d_0}{1}\\arctan(\\frac{2d_0}{l})}{\\frac{4d^2+l^2}{4l}\\arctan(\\frac{2d}{l})+\\frac{d}{1}\\arctan(\\frac{2d}{l})}',vars:[{s:'d0',n:'参考距离',u:'m',v:'7.5'},{s:'d',n:'预测距离',u:'m',v:'30'},{s:'l',n:'列车长度',u:'m',v:'120'}],calc:v=>10*Math.log10(v.d0/v.d),unit:'dB'},
+{id:'train_maglev',cat:'噪声预测',n:'列车运行噪声几何发散衰减（地铁、轻轨、中低速磁浮）',law:'HJ 2.4',latex:'A_{t,div}=10\\lg\\frac{d_0\\arctan(2d/l)}{d\\arctan(2d_0/l)}',vars:[{s:'d0',n:'参考距离',u:'m',v:'7.5'},{s:'d',n:'预测距离',u:'m',v:'30'},{s:'l',n:'列车长度',u:'m',v:'120'}],calc:v=>10*Math.log10(v.d0*Math.atan(2*v.d/v.l)/(v.d*Math.atan(2*v.d0/v.l))),unit:'dB'},
+{id:'airport',cat:'噪声预测',n:'机场航空器噪声事件的有效感觉噪声级',law:'HJ 2.4',latex:'L_{EPN}=L_{A\\max}+10\\lg(\\frac{T}{20})+13',vars:[{s:'LAmax',n:'最大A声级',u:'dB(A)',v:'90'},{s:'T',n:'持续时间',u:'s',v:'30'}],calc:v=>v.LAmax+10*Math.log10(v.T/20)+13,unit:'dB'},
+
+// === 应急预案 ===
+{id:'q_calc',cat:'应急预案',n:'危险物质数量与临界量比值',law:'HJ 941',latex:'Q=\\frac{Q_1}{q_1}',vars:[{s:'Q1',n:'危险物质数量',u:'t',v:'10'},{s:'q1',n:'临界量',u:'t',v:'50'}],calc:v=>v.Q1/v.q1,unit:''},
+{id:'sub_crit',cat:'应急预案',n:'次临界流流出系数计算',law:'HJ 169',latex:'Y=\\left[\\frac{P}{P_0}\\right]^{\\frac{1}{\\gamma}}\\cdot\\left\\{1-\\left[\\frac{P}{P_0}\\right]^{\\frac{\\gamma-1}{\\gamma}}\\right\\}^{\\frac{1}{2}}\\cdot\\left\\{\\frac{2}{\\gamma-1}\\cdot\\left[\\frac{2}{\\gamma+1}\\right]^{\\frac{\\gamma+1}{\\gamma-1}}\\right\\}^{\\frac{1}{2}}',vars:[{s:'P',n:'容器内压力',u:'Pa',v:'200000'},{s:'P0',n:'大气压力',u:'Pa',v:'101325'},{s:'gamma',n:'绝热指数γ',u:'',v:'1.4'}],calc:v=>{let r=v.P/v.P0;return Math.pow(r,1/v.gamma)*Math.sqrt(1-Math.pow(r,(v.gamma-1)/v.gamma))*Math.sqrt(2/(v.gamma-1)*Math.pow(2/(v.gamma+1),(v.gamma+1)/(v.gamma-1)))},unit:''},
+{id:'two_phase_density',cat:'应急预案',n:'两相混合物的平均密度计算',law:'HJ 169',latex:'\\rho_m=\\frac{1}{\\frac{F_v}{\\rho_1}+\\frac{1-F_V}{\\rho_2}}',vars:[{s:'Fv',n:'闪蒸比例',u:'',v:'0.3'},{s:'rho1',n:'气相密度',u:'kg/m³',v:'2'},{s:'rho2',n:'液相密度',u:'kg/m³',v:'1000'}],calc:v=>1/(v.Fv/v.rho1+(1-v.Fv)/v.rho2),unit:'kg/m³'},
+{id:'flash_ratio',cat:'应急预案',n:'泄漏液体的闪蒸比例',law:'HJ 169',latex:'F_v=\\frac{C_P(T_T-T_b)}{H_v}',vars:[{s:'CP',n:'液体比热',u:'kJ/(kg·K)',v:'2'},{s:'TT',n:'液体温度',u:'K',v:'350'},{s:'Tb',n:'沸点',u:'K',v:'300'},{s:'Hv',n:'汽化热',u:'kJ/kg',v:'300'}],calc:v=>v.CP*(v.TT-v.Tb)/v.Hv,unit:''},
+{id:'pollutant_time',cat:'应急预案',n:'污染物到达最近的受体点的时间计算',law:'HJ 169',latex:'T=\\frac{2X}{U_r}',vars:[{s:'X',n:'距离',u:'m',v:'1000'},{s:'Ur',n:'风速',u:'m/s',v:'2.5'}],calc:v=>2*v.X/v.Ur,unit:'s'},
+{id:'cont_dyn',cat:'应急预案',n:'连续排放的流体动力学参数计算',law:'HJ 169',latex:'R_i=\\frac{U_r\\left[\\frac{D_{rel}\\cdot g(\\rho_{rel}-\\rho_a)/\\rho_a}{Q}\\cdot(\\frac{\\rho_{rel}-\\rho_a}{\\rho_a})\\right]^{1/3}}{U_r^2}',vars:[{s:'Ur',n:'风速',u:'m/s',v:'2.5'},{s:'Drel',n:'释放直径',u:'m',v:'0.1'},{s:'rhoR',n:'释放物密度',u:'kg/m³',v:'2'},{s:'rhoA',n:'空气密度',u:'kg/m³',v:'1.2'},{s:'Q',n:'释放速率',u:'kg/s',v:'0.5'}],calc:v=>{let g=9.81;return v.Ur*Math.pow(v.Drel*g*((v.rhoR-v.rhoA)/v.rhoA)/v.Q*((v.rhoR-v.rhoA)/v.rhoA),1/3)/(v.Ur*v.Ur)},unit:''},
+{id:'leak_liquid',cat:'应急预案',n:'液体泄漏速率',law:'HJ 169',latex:'Q_L=C_dA\\rho\\sqrt{\\frac{2(P-P_0)}{\\rho}+2gh}',vars:[{s:'Cd',n:'泄漏系数',u:'',v:'0.65'},{s:'A',n:'裂口面积',u:'m²',v:'0.0001'},{s:'rho',n:'液体密度',u:'kg/m³',v:'1000'},{s:'P',n:'容器内压',u:'Pa',v:'200000'},{s:'P0',n:'大气压',u:'Pa',v:'101325'},{s:'h',n:'液位高度',u:'m',v:'5'}],calc:v=>v.Cd*v.A*v.rho*Math.sqrt(2*(v.P-v.P0)/v.rho+2*9.81*v.h),unit:'kg/s'},
+{id:'leak_gas',cat:'应急预案',n:'理想气体泄漏速率计算',law:'HJ 169',latex:'Q_G=YC_dAP\\sqrt{\\frac{M\\gamma}{RT_G}\\left(\\frac{\\gamma+1}{2}\\right)^{\\frac{\\gamma-1}{\\gamma+1}}}',vars:[{s:'Y',n:'流出系数',u:'',v:'1'},{s:'Cd',n:'泄漏系数',u:'',v:'0.65'},{s:'A',n:'裂口面积',u:'m²',v:'0.0001'},{s:'P',n:'容器内压',u:'Pa',v:'500000'},{s:'M',n:'分子量',u:'g/mol',v:'17'},{s:'gamma',n:'绝热指数',u:'',v:'1.4'},{s:'T',n:'温度',u:'K',v:'293'}],calc:v=>v.Y*v.Cd*v.A*v.P*Math.sqrt(v.M*v.gamma/(8.314*v.T)*Math.pow((v.gamma+1)/2,(v.gamma-1)/(v.gamma+1))),unit:'kg/s'},
+{id:'leak_two',cat:'应急预案',n:'两相流泄漏速率',law:'HJ 169',latex:'Q_{LG}=C_dA\\sqrt{2\\rho_m(P-P_C)}',vars:[{s:'Cd',n:'泄漏系数',u:'',v:'0.65'},{s:'A',n:'裂口面积',u:'m²',v:'0.0001'},{s:'rhoM',n:'混合密度',u:'kg/m³',v:'500'},{s:'P',n:'容器内压',u:'Pa',v:'500000'},{s:'PC',n:'临界压力',u:'Pa',v:'101325'}],calc:v=>v.Cd*v.A*Math.sqrt(2*v.rhoM*(v.P-v.PC)),unit:'kg/s'},
+{id:'evap_ratio',cat:'应急预案',n:'蒸发的液体占液体总量的比例',law:'HJ 169',latex:'F_V=\\frac{C_P(T_L-T_C)}{H}',vars:[{s:'CP',n:'液体比热',u:'kJ/(kg·K)',v:'2'},{s:'TL',n:'液体泄漏温度',u:'K',v:'350'},{s:'TC',n:'液体沸点',u:'K',v:'300'},{s:'H',n:'汽化热',u:'kJ/kg',v:'300'}],calc:v=>v.CP*(v.TL-v.TC)/v.H,unit:''},
+{id:'flash_evap',cat:'应急预案',n:'过热液体闪蒸蒸发速率估算',law:'HJ 169',latex:'Q_1=Q_L\\cdot F_v',vars:[{s:'QL',n:'液体泄漏速率',u:'kg/s',v:'5'},{s:'Fv',n:'闪蒸比例',u:'',v:'0.3'}],calc:v=>v.QL*v.Fv,unit:'kg/s'},
+{id:'instant_dyn',cat:'应急预案',n:'瞬时排放流体动力学参数计算',law:'HJ 169',latex:'R_i=\\frac{U_r^2\\left(\\frac{g(Q_t(\\rho_{rel}/\\rho_a))}{U_r^2}\\right)^{1/3}\\cdot\\left(\\frac{\\rho_{rel}-\\rho_a}{\\rho_a}\\right)}{U_r^2}',vars:[{s:'Ur',n:'风速',u:'m/s',v:'2.5'},{s:'Qt',n:'瞬时释放量',u:'kg',v:'100'},{s:'rhoR',n:'释放物密度',u:'kg/m³',v:'2'},{s:'rhoA',n:'空气密度',u:'kg/m³',v:'1.2'}],calc:v=>{let g=9.81;return Math.pow(g*v.Qt*(v.rhoR/v.rhoA)/(v.Ur*v.Ur),1/3)*((v.rhoR-v.rhoA)/v.rhoA)},unit:''},
+{id:'heat_evap',cat:'应急预案',n:'热量蒸发估算',law:'HJ 169',latex:'Q_2=\\frac{\\lambda S(T_0-T_b)}{H\\sqrt{\\pi\\alpha t}}',vars:[{s:'lam',n:'导热系数',u:'W/(m·K)',v:'0.6'},{s:'S',n:'液池面积',u:'m²',v:'10'},{s:'T0',n:'环境温度',u:'K',v:'300'},{s:'Tb',n:'沸点',u:'K',v:'250'},{s:'H',n:'汽化热',u:'kJ/kg',v:'300'},{s:'alpha',n:'热扩散系数',u:'m²/s',v:'1.5e-7'},{s:'t',n:'时间',u:'s',v:'600'}],calc:v=>v.lam*v.S*(v.T0-v.Tb)/(v.H*1000*Math.sqrt(Math.PI*v.alpha*v.t)),unit:'kg/s'},
+{id:'mass_evap',cat:'应急预案',n:'质量蒸发估算',law:'HJ 169',latex:'Q_3=\\alpha p\\cdot\\frac{M}{RT_0}\\cdot u^{\\frac{(2+n)}{(2-n)}}\\cdot r^{\\frac{(2+n)}{(4+n)}}',vars:[{s:'alpha',n:'系数α',u:'',v:'0.005'},{s:'p',n:'蒸汽压',u:'Pa',v:'5000'},{s:'M',n:'分子量',u:'g/mol',v:'18'},{s:'T0',n:'温度',u:'K',v:'293'},{s:'u',n:'风速',u:'m/s',v:'2.5'},{s:'r',n:'液池半径',u:'m',v:'5'},{s:'n',n:'大气稳定度',u:'',v:'0.25'}],calc:v=>v.alpha*v.p*v.M/(8.314*v.T0)*Math.pow(v.u,(2+v.n)/(2-v.n))*Math.pow(v.r,(2+v.n)/(4+v.n)),unit:'kg/s'},
+{id:'total_evap',cat:'应急预案',n:'液体蒸发总量的计算',law:'HJ 169',latex:'W_p=Q_1t_1+Q_2t_2+Q_3t_3',vars:[{s:'Q1',n:'闪蒸速率',u:'kg/s',v:'1.5'},{s:'t1',n:'闪蒸时间',u:'s',v:'60'},{s:'Q2',n:'热量蒸化速率',u:'kg/s',v:'0.5'},{s:'t2',n:'热量蒸化时间',u:'s',v:'600'},{s:'Q3',n:'质量蒸化速率',u:'kg/s',v:'0.1'},{s:'t3',n:'质量蒸发时间',u:'s',v:'3600'}],calc:v=>v.Q1*v.t1+v.Q2*v.t2+v.Q3*v.t3,unit:'kg'},
+{id:'accident_pool',cat:'应急预案',n:'事故缓冲设施总有效容积（事故应急池）',law:'HJ 169',latex:'V_{\\text{总}}=(V_1+V_2-V_3)+V_4+V_5',vars:[{s:'V1',n:'最大物料量',u:'m³',v:'50'},{s:'V2',n:'消防水量',u:'m³',v:'200'},{s:'V3',n:'可转输量',u:'m³',v:'50'},{s:'V4',n:'初期雨水量',u:'m³',v:'30'},{s:'V5',n:'其他水量',u:'m³',v:'10'}],calc:v=>v.V1+v.V2-v.V3+v.V4+v.V5,unit:'m³'},
+
+// === 其他类型 ===
+{id:'active_carbon_m',cat:'其他类型',n:'活性炭重量计算',law:'物料衡算',latex:'G=\\phi\\cdot T\\cdot n\\cdot L\\cdot l,\\ F=V\\div3600\\div v,\\ L=F/l',vars:[{s:'phi',n:'密度',u:'kg/m³',v:'450'},{s:'T',n:'数量',u:'个',v:'4'},{s:'n',n:'层数',u:'',v:'1'},{s:'V',n:'风量',u:'m³/h',v:'10000'},{s:'v',n:'空塔速度',u:'m/s',v:'0.3'},{s:'l',n:'单层厚度',u:'m',v:'0.3'}],calc:v=>{let F=v.V/3600/v.v,L=F/v.l;return v.phi*v.T*v.n*L*v.l},unit:'kg'},
+{id:'active_carbon_t',cat:'其他类型',n:'活性炭更换周期',law:'物料衡算',latex:'T=m\\cdot s\\div(c\\cdot10^{-6}\\cdot Q\\cdot t)',vars:[{s:'m',n:'装填量',u:'kg',v:'500'},{s:'s',n:'吸附容量',u:'%',v:'10'},{s:'c',n:'进口浓度',u:'mg/m³',v:'200'},{s:'Q',n:'风量',u:'m³/h',v:'10000'},{s:'t',n:'年运行时间',u:'h/a',v:'4800'}],calc:v=>v.m*v.s/100/(v.c*1e-6*v.Q*v.t)/24,unit:'d'},
+{id:'active_carbon_res',cat:'其他类型',n:'活性炭停留时间',law:'物料衡算',latex:'t=T\\cdot n\\div v',vars:[{s:'T',n:'单层厚度',u:'m',v:'0.3'},{s:'n',n:'层数',u:'',v:'1'},{s:'v',n:'空塔速度',u:'m/s',v:'0.3'}],calc:v=>v.T*v.n/v.v,unit:'s'},
+{id:'active_carbon_cycle',cat:'其他类型',n:'活性炭周期算用量',law:'物料衡算',latex:'M=T\\cdot(\\frac{10^6}{c}\\cdot Q\\cdot t)\\div s',vars:[{s:'T',n:'更换周期',u:'d',v:'90'},{s:'c',n:'进口浓度',u:'mg/m³',v:'200'},{s:'Q',n:'风量',u:'m³/h',v:'10000'},{s:'t',n:'日运行时间',u:'h/d',v:'16'},{s:'s',n:'吸附容量',u:'%',v:'10'}],calc:v=>v.T*(1e6/v.c*v.Q*v.t)/(v.s/100)/1000,unit:'kg/周期'},
+{id:'qhd_dust',cat:'其他类型',n:'秦皇岛码头煤堆起尘量计算',law:'经验公式',latex:'Q_p=2.1K\\times(U-U_0)^3\\times e^{-1.023w}\\times P',vars:[{s:'K',n:'系数',u:'',v:'1'},{s:'U',n:'风速',u:'m/s',v:'5'},{s:'U0',n:'起动风速',u:'m/s',v:'3'},{s:'w',n:'含水率',u:'%',v:'5'},{s:'P',n:'煤堆表面积',u:'m²',v:'500'}],calc:v=>2.1*v.K*Math.pow(v.U-v.U0,3)*Math.exp(-1.023*v.w)*v.P,unit:'mg/s'},
+{id:'coal_load',cat:'其他类型',n:'煤炭装卸起尘计算',law:'经验公式',latex:'Q_{ij}=0.03V_i^{1.6}H^{1.23}\\cdot\\lambda^{-0.28w}\\cdot G_i\\cdot f_i\\cdot\\alpha',vars:[{s:'Vi',n:'风速',u:'m/s',v:'5'},{s:'H',n:'落差',u:'m',v:'3'},{s:'lam',n:'物料细度',u:'',v:'0.5'},{s:'w',n:'含水率',u:'%',v:'5'},{s:'Gi',n:'装卸量',u:'t',v:'1000'},{s:'fi',n:'粒度系数',u:'',v:'1'},{s:'alpha',n:'其他系数',u:'',v:'1'}],calc:v=>0.03*Math.pow(v.Vi,1.6)*Math.pow(v.H,1.23)*Math.pow(v.lam,-0.28*v.w)*v.Gi*v.fi*v.alpha,unit:'kg/a'},
+{id:'coal_pile',cat:'其他类型',n:'煤堆起尘量计算',law:'经验公式',latex:'Q_m=11.7U^{2.45}S^{0.345}e^{-0.5w}e^{-0.55(W-0.07)}',vars:[{s:'U',n:'风速',u:'m/s',v:'5'},{s:'S',n:'堆场面积',u:'m²',v:'500'},{s:'w',n:'含水率',u:'%',v:'5'},{s:'W',n:'物料含水率',u:'%',v:'8'}],calc:v=>11.7*Math.pow(v.U,2.45)*Math.pow(v.S,0.345)*Math.exp(-0.5*v.w)*Math.exp(-0.55*(v.W-0.07)),unit:'mg/s'},
+{id:'fixed_tank',cat:'其他类型',n:'固定顶罐的工作排放量的计算',law:'HJ 984',latex:'L_W=4.188\\times10^{-7}\\times M\\times P\\times K_N\\times K',vars:[{s:'M',n:'分子量',u:'g/mol',v:'100'},{s:'P',n:'蒸汽压',u:'Pa',v:'5000'},{s:'KN',n:'周转系数KN',u:'',v:'1'},{s:'K',n:'产品系数',u:'',v:'1'}],calc:v=>4.188e-7*v.M*v.P*v.KN*v.K,unit:'kg/a'},
+{id:'coating_voc',cat:'其他类型',n:'防腐涂料使用挥发性有机物产生量（排放量）',law:'物料衡算',latex:'E=D=EF_{\\text{溶剂}}\\times A_{\\text{溶剂}}+EF_{\\text{水性}}\\times A_{\\text{水性}}',vars:[{s:'EFsa',n:'溶剂型排放因子',u:'kg/L',v:'0.6'},{s:'As',n:'溶剂型用量',u:'L',v:'1000'},{s:'EFwa',n:'水性排放因子',u:'kg/L',v:'0.1'},{s:'Aw',n:'水性用量',u:'L',v:'500'}],calc:v=>v.EFsa*v.As+v.EFwa*v.Aw,unit:'kg'},
+{id:'open_dust',cat:'其他类型',n:'有害物质敞露存放的散发量计算',law:'物料衡算',latex:'G=(5.38+4.1u)P_v\\cdot F\\cdot M^{0.5}',vars:[{s:'u',n:'风速',u:'m/s',v:'0.5'},{s:'Pv',n:'饱和蒸汽压',u:'Pa',v:'5000'},{s:'F',n:'敞露面积',u:'m²',v:'2'},{s:'M',n:'分子量',u:'g/mol',v:'100'}],calc:v=>(5.38+4.1*v.u)*v.Pv*v.F*Math.sqrt(v.M),unit:'g/h'},
+{id:'build_dust',cat:'其他类型',n:'建设工地起尘量计算',law:'经验公式',latex:'E=P\\times0.81\\times s\\times\\frac{30}{v}\\times\\frac{365}{365-w}\\times\\frac{4}{T}',vars:[{s:'P',n:'施工强度系数',u:'',v:'1.2'},{s:'s',n:'面积',u:'m²',v:'5000'},{s:'v',n:'风速',u:'m/s',v:'5'},{s:'w',n:'年降雨天数',u:'d',v:'80'},{s:'T',n:'施工工期',u:'月',v:'12'}],calc:v=>v.P*0.81*v.s*30/v.v*365/(365-v.w)*4/v.T,unit:'t/a'},
+{id:'road_dust_year',cat:'其他类型',n:'道路起尘量计算',law:'经验公式',latex:'E=0.000501\\times V\\times0.823\\times U\\times0.139\\times\\frac{4}{T}',vars:[{s:'V',n:'车流量',u:'辆/d',v:'100'},{s:'U',n:'风速',u:'m/s',v:'2.5'},{s:'T',n:'洒水间隔',u:'d',v:'2'}],calc:v=>0.000501*v.V*0.823*v.U*0.139*4/v.T,unit:'kg/(km·a)'},
+{id:'float_tank',cat:'其他类型',n:'浮顶油罐呼吸量计算（大呼吸）',law:'HJ 984',latex:'L_w=\\frac{4Q_1C\\rho_\\gamma}{D}',vars:[{s:'Q1',n:'年周转量',u:'m³/a',v:'50000'},{s:'C',n:'罐壁粘附系数',u:'',v:'0.001'},{s:'rho',n:'密度',u:'kg/m³',v:'800'},{s:'D',n:'罐直径',u:'m',v:'20'}],calc:v=>4*v.Q1*v.C*v.rho/v.D,unit:'kg/a'},
+{id:'inner_float_big',cat:'其他类型',n:'内浮顶油罐呼吸量（大呼吸）',law:'HJ 984',latex:'L_W=\\frac{4Q_1C\\rho_\\gamma}{D}\\times(1+\\frac{N_cF_c}{D})',vars:[{s:'Q1',n:'年周转量',u:'m³/a',v:'50000'},{s:'C',n:'粘附系数',u:'',v:'0.001'},{s:'rho',n:'密度',u:'kg/m³',v:'800'},{s:'D',n:'罐直径',u:'m',v:'20'},{s:'Nc',n:'支柱数',u:'',v:'20'},{s:'Fc',n:'支柱直径',u:'m',v:'0.1'}],calc:v=>4*v.Q1*v.C*v.rho/v.D*(1+v.Nc*v.Fc/v.D),unit:'kg/a'},
+{id:'inner_float_small',cat:'其他类型',n:'内浮顶油罐呼吸量（小呼吸）',law:'HJ 984',latex:'L_{FS}=K*V_n*P_\\gamma*D*M_V*K_S*K_C*E_F',vars:[{s:'K',n:'系数',u:'',v:'1'},{s:'Vn',n:'风速系数',u:'',v:'1'},{s:'Pg',n:'蒸汽压函数',u:'',v:'0.5'},{s:'D',n:'罐直径',u:'m',v:'20'},{s:'MV',n:'分子量',u:'g/mol',v:'100'},{s:'KS',n:'密封系数',u:'',v:'1'},{s:'KC',n:'产品系数',u:'',v:'1'},{s:'EF',n:'边缘密封系数',u:'',v:'1'}],calc:v=>v.K*v.Vn*v.Pg*v.D*v.MV*v.KS*v.KC*v.EF,unit:'kg/a'},
+{id:'carbon_e_burn',cat:'其他类型',n:'碳排放计算E燃烧',law:'物料衡算',latex:'E=F_{ci}\\cdot N_{cvi}\\cdot E_{Fi},\\ E_{Fi}=C_{ci}\\cdot O_{Fi}\\cdot\\frac{44}{12}\\div100',vars:[{s:'Fci',n:'燃料消耗量',u:'t/a',v:'2000'},{s:'Ncvi',n:'低位热值',u:'GJ/t',v:'20'},{s:'Cci',n:'单位热值含碳量',u:'tC/GJ',v:'0.026'},{s:'OFi',n:'碳氧化率',u:'%',v:'98'}],calc:v=>v.Fci*v.Ncvi*v.Cci*v.OFi/100*44/12/100,unit:'tCO₂'},
+{id:'carbon_e_elec',cat:'其他类型',n:'碳排放计算E电',law:'物料衡算',latex:'E=A_{\\text{电}}\\cdot F_{\\text{电}}',vars:[{s:'Ae',n:'用电量',u:'MWh',v:'5000'},{s:'Fe',n:'电网排放因子',u:'tCO₂/MWh',v:'0.581'}],calc:v=>v.Ae*v.Fe,unit:'tCO₂'},
+{id:'car_dust',cat:'其他类型',n:'汽车道路扬尘',law:'经验公式',latex:'Q_i=0.0079*v*w^{0.85}*p^{0.72}',vars:[{s:'v',n:'车速',u:'km/h',v:'30'},{s:'w',n:'车重',u:'t',v:'20'},{s:'p',n:'路面尘土量',u:'g/m²',v:'50'}],calc:v=>0.0079*v.v*Math.pow(v.w,0.85)*Math.pow(v.p,0.72),unit:'kg/(km·辆)'},
+{id:'single_car_dust',cat:'其他类型',n:'煤堆起尘量计算(单辆车引起的煤堆起尘量散发因子)',law:'经验公式',latex:'E=0.05\\times\\frac{1.5}{V}\\times\\frac{90}{D}\\times\\frac{255}{d}\\times\\frac{15}{f}',vars:[{s:'V',n:'车速',u:'km/h',v:'20'},{s:'D',n:'车轮直径',u:'cm',v:'100'},{s:'d',n:'道路粉尘量',u:'g/m²',v:'100'},{s:'f',n:'细颗粒比例',u:'%',v:'15'}],calc:v=>0.05*1.5/v.V*90/v.D*255/v.d*15/v.f,unit:'kg/辆'},
+{id:'year_road',cat:'其他类型',n:'一年中单位长度道路的起尘量计算',law:'经验公式',latex:'Q_A=C\\times24\\times(D-d)\\times P\\times(l-A_c)\\times E\\times10^{-6}',vars:[{s:'C',n:'车辆数',u:'辆/d',v:'100'},{s:'D',n:'年天数',u:'d',v:'365'},{s:'d',n:'降雨天数',u:'d',v:'80'},{s:'P',n:'路面状况系数',u:'',v:'1'},{s:'l',n:'道路长度',u:'km',v:'1'},{s:'Ac',n:'清洁系数',u:'',v:'0'},{s:'E',n:'单车排放',u:'kg/(km·辆)',v:'0.01'}],calc:v=>v.C*24*(v.D-v.d)*v.P*(v.l-v.Ac)*v.E*1e-6,unit:'t/(km·a)'},
+{id:'prod_capacity',cat:'产能核算',n:'电镀产品设计产能',law:'物料衡算',latex:'S=\\frac{g\\cdot\\eta}{\\rho\\cdot h\\cdot10^{-6}}',vars:[{s:'g',n:'镀层重量',u:'g',v:'50'},{s:'eta',n:'电流效率',u:'%',v:'85'},{s:'rho',n:'镀层密度',u:'g/cm³',v:'8.9'},{s:'h',n:'镀层厚度',u:'μm',v:'10'}],calc:v=>v.g*v.eta/100/(v.rho*v.h*1e-6),unit:'m²'},
+];
 
 let selectedId = null;
-let catFilters = [];
-
 function init() {
-  catFilters = [...new Set(FORMULAS.map(f=>f.cat))];
-  document.getElementById('catFilter').innerHTML = '<option value="">全部分类</option>' +
-    catFilters.map(c=>`<option value="${c}">${c}</option>`).join('');
+  const cats = [...new Set(FORMULAS.map(f=>f.cat))].sort();
+  document.getElementById('catFilter').innerHTML = '<option value="">全部分类</option>' + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
   renderList();
 }
-
 function renderList() {
   const q = (document.getElementById('searchInput')?.value||'').toLowerCase();
   const cat = document.getElementById('catFilter')?.value||'';
   let items = FORMULAS;
-  if (q) items = items.filter(f=>f.n.toLowerCase().includes(q)||f.cat.toLowerCase().includes(q)||f.law.toLowerCase().includes(q));
+  if (q) items = items.filter(f=>f.n.toLowerCase().includes(q)||f.cat.includes(q)||f.law.toLowerCase().includes(q));
   if (cat) items = items.filter(f=>f.cat===cat);
-
-  let html = '';
-  let lastCat = '';
+  let html = '', lastCat = '';
   for (const f of items) {
-    if (f.cat !== lastCat) {
-      html += `<div style="font-size:11px;color:var(--muted);padding:8px 4px 4px;font-weight:800;text-transform:uppercase;">${f.cat}</div>`;
-      lastCat = f.cat;
-    }
-    html += `<div class="panel-soft" style="padding:10px;cursor:pointer;${f.id===selectedId?'border:1px solid var(--accent);background:#f0fdfa;':''}" onclick="selectFormula('${f.id}')">
-      <div style="font-size:13px;font-weight:700;color:#0f172a;">${f.n}</div>
-      <div class="text-muted text-xs mt-1">${f.law}</div>
-    </div>`;
+    if (f.cat !== lastCat) { html += `<div style="font-size:11px;color:var(--muted);padding:8px 4px 4px;font-weight:800;">${f.cat}</div>`; lastCat = f.cat; }
+    html += `<div class="panel-soft" style="padding:8px 10px;cursor:pointer;${f.id===selectedId?'border:1px solid var(--accent);background:#f0fdfa;':''}" onclick="selectFormula('${f.id}')"><div style="font-size:13px;font-weight:700;color:#0f172a;">${f.n}</div><div class="text-muted text-xs mt-1">${f.law}</div></div>`;
   }
   if (!items.length) html = '<div class="text-muted text-sm text-center p-4">未找到匹配的公式</div>';
   document.getElementById('formulaList').innerHTML = html;
 }
-
 function selectFormula(id) {
-  selectedId = id;
-  renderList();
+  selectedId = id; renderList();
   const f = FORMULAS.find(x=>x.id===id);
   if (!f) return;
-
-  let latexHtml = '';
-  try { latexHtml = katex.renderToString(f.latex, {displayMode:true}); } catch(e) { latexHtml = f.latex; }
-
-  let varHtml = f.vars.map(inp => `<tr>
-    <td style="font-weight:600;font-size:13px;">${inp.n}</td>
-    <td style="font-family:monospace;color:var(--accent-dark);">${inp.s}</td>
-    <td><input class="input" id="dv_${inp.s}" type="number" step="any" value="${inp.v}" style="width:100%;min-height:32px;font-size:13px;"></td>
-    <td class="text-muted text-xs">${inp.u}</td>
-  </tr>`).join('');
-
-  document.getElementById('detailPanel').innerHTML = `
-    <div style="margin-bottom:12px;">
-      <span class="badge badge-uploaded mb-2">${f.cat}</span>
-      <div class="text-muted text-xs mt-2">依据：${f.law}</div>
-    </div>
-    <div class="font-semibold mb-3" style="font-size:18px;color:#0f172a;">${f.n}</div>
-    <div class="panel-soft" style="padding:16px;margin-bottom:16px;text-align:center;overflow-x:auto;">${latexHtml}</div>
-    ${f.desc ? `<div class="text-muted text-sm mb-2">${f.desc}</div>` : ''}
-    <table class="table" style="margin-bottom:12px;">
-      <thead><tr><th>变量名</th><th>符号</th><th>输入值</th><th>单位</th></tr></thead>
-      <tbody>${varHtml}</tbody>
-    </table>
-    <button class="btn btn-primary" onclick="doCalc()"><i class="fas fa-calculator"></i> 计算</button>
-    <div id="calcResult" class="mt-3"></div>`;
+  let latexHtml = ''; try { latexHtml = katex.renderToString(f.latex, {displayMode:true}); } catch(e) { latexHtml = f.latex; }
+  let varHtml = f.vars.map(inp => `<tr><td style="font-weight:600;">${inp.n}</td><td style="font-family:monospace;color:var(--accent-dark);">${inp.s}</td><td><input class="input" id="dv_${inp.s}" type="number" step="any" value="${inp.v}" style="width:100%;min-height:30px;font-size:13px;"></td><td class="text-muted text-xs">${inp.u}</td></tr>`).join('');
+  document.getElementById('detailPanel').innerHTML = `<div style="margin-bottom:12px;"><span class="badge badge-uploaded">${f.cat}</span><span class="text-muted text-xs ml-2">${f.law}</span></div><div class="font-semibold mb-3" style="font-size:18px;color:#0f172a;">${f.n}</div><div class="panel-soft" style="padding:16px;margin-bottom:16px;text-align:center;overflow-x:auto;">${latexHtml}</div>${f.desc?`<div class="text-muted text-sm mb-2">${f.desc}</div>`:''}<table class="table" style="margin-bottom:12px;"><thead><tr><th>变量名</th><th>符号</th><th>输入值</th><th>单位</th></tr></thead><tbody>${varHtml}</tbody></table><button class="btn btn-primary" onclick="doCalc()"><i class="fas fa-calculator"></i> 计算</button><div id="calcResult" class="mt-3"></div>`;
 }
-
 function doCalc() {
   const f = FORMULAS.find(x=>x.id===selectedId);
   if (!f) return;
   const vals = {};
-  for (const inp of f.vars) {
-    vals[inp.s] = parseFloat(document.getElementById('dv_'+inp.s)?.value) || 0;
-  }
-  const result = f.calc(vals);
-  let html = '<table class="table"><thead><tr><th>项目</th><th>结果</th><th>单位</th></tr></thead><tbody>';
-  if (Array.isArray(result)) {
-    for (const r of result) {
-      html += `<tr><td style="font-weight:600;">${r[0]}</td><td style="font-weight:700;color:var(--accent-dark);">${r[1]}</td><td>${f.unit||'t/a'}</td></tr>`;
-    }
-  } else {
-    html += `<tr><td style="font-weight:600;">${f.n}</td><td style="font-weight:700;color:var(--accent-dark);">${result}</td><td>${f.unit||'t/a'}</td></tr>`;
-  }
-  html += '</tbody></table>';
-  document.getElementById('calcResult').innerHTML = html;
+  for (const inp of f.vars) vals[inp.s] = parseFloat(document.getElementById('dv_'+inp.s)?.value) || 0;
+  try {
+    const result = f.calc(vals);
+    let html = '<table class="table"><thead><tr><th>项目</th><th>结果</th><th>单位</th></tr></thead><tbody>';
+    if (Array.isArray(result)) { for (const r of result) html += `<tr><td style="font-weight:600;">${r[0]}</td><td style="font-weight:700;color:var(--accent-dark);">${r[1]}</td><td>${f.unit||''}</td></tr>`; }
+    else html += `<tr><td style="font-weight:600;">${f.n}</td><td style="font-weight:700;color:var(--accent-dark);">${result}</td><td>${f.unit||''}</td></tr>`;
+    html += '</tbody></table>';
+    document.getElementById('calcResult').innerHTML = html;
+  } catch(e) { document.getElementById('calcResult').innerHTML = '<span class="text-p0">计算错误: '+e.message+'</span>'; }
 }
-
 init();
 </script>
 {% endblock %}
