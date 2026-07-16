@@ -608,10 +608,22 @@ POST /api/knowledge/ask
 - [x] 实现系统日志存储和查询
 
 ### Step 7: 前端页面
-- [x] 使用 frontend-design skill 设计暗色工业技术风 UI
 - [x] 实现 base.html 框架（侧边栏 + 顶栏）
-- [x] 实现 8 个页面模板（home/overview/audit/realtime/knowledge/settings + admin×3）
+- [x] 实现 12 个页面模板（home/overview/audit/realtime/knowledge/generate/files/rules/coord/settings + admin×2）
 - [x] 编写全局 CSS 样式（浅色 teal 主题，复刻原平台）
+- [x] 文件夹上传前端按钮
+- [x] 项目列表搜索 + 状态筛选
+- [x] 报告下载下拉菜单（HTML/MD/DOCX）
+- [x] 首页 3 张 Agent 展示卡片
+- [x] 生成报告状态恢复（sessionStorage）
+
+### Step 8: 测试
+- [x] 7 项审核引擎核心单元测试（extractor/grader/rules_engine/standards_index）
+- [x] 验收规则 6 条 + 应急规则 8 条完整覆盖
+
+### Step 9: 部署
+- [x] .gitignore + README.md + setup.bat 一键初始化
+- [x] LLM 缓存（相同报告+规则复用结果）
 
 ---
 
