@@ -67,22 +67,50 @@ def _parse_content(content: str) -> dict:
 
 
 def _split_chapters(text: str) -> list[dict]:
+    patterns = [
+        re.compile(r"^(#{1,4})\s+(.+)"),
+        re.compile(r"^第[0-9一二三四五六七八九十百]+章\s*(.*)"),
+        re.compile(r"^[（(][一二三四五六七八九十]+[）)]\s*(.*)"),
+        re.compile(r"^[一二三四五六七八九十]+[、．，,]\s*(.*)"),
+        re.compile(r"^\d+(?:\.\d+)*\s+(.+?)(?:\s*\.{3,})?$"),
+    ]
+
     chapters = []
     lines = text.split("\n")
     current_chapter = None
     current_content = []
 
     for line in lines:
-        match = re.match(r"^(#{1,4})\s+(.+)", line)
-        if match:
+        stripped = line.strip()
+        if not stripped:
             if current_chapter:
-                current_chapter["content"] = "\n".join(current_content).strip()
-                chapters.append(current_chapter)
-            level = len(match.group(1))
-            title = match.group(2).strip()
-            current_chapter = {"title": title, "level": level, "content": ""}
-            current_content = []
-        elif current_chapter:
+                current_content.append(line)
+            continue
+
+        matched = False
+        for idx, pat in enumerate(patterns):
+            m = pat.match(stripped)
+            if m:
+                if current_chapter:
+                    current_chapter["content"] = "\n".join(current_content).strip()
+                    chapters.append(current_chapter)
+
+                if idx == 0:
+                    title = m.group(2).strip()
+                    level = len(m.group(1))
+                else:
+                    title = m.group(1).strip() if m.lastindex and m.lastindex >= 1 else stripped
+                    level = 2
+
+                if len(title) > 80:
+                    continue
+
+                current_chapter = {"title": title, "level": level, "content": ""}
+                current_content = []
+                matched = True
+                break
+
+        if not matched and current_chapter:
             current_content.append(line)
 
     if current_chapter:

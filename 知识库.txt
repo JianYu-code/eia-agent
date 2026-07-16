@@ -3,3 +3,18 @@
            → 自动标记 deprecated: true（保留在知识库中！）
 新标准发布 → 放到 output/a → sync → 自动入库 deprecated: false
 不会丢标签，也不需要手动标注。唯一需要关心的是：原始文件放对目录、文件名保留标准编号。
+
+
+清理 + 重新入库命令：
+# 1. 清理
+del backend\data\eia.db
+rmdir /s backend\data\lance
+
+# 2. 环评五四三全量入库
+python scripts\ingest_mineru.py full
+
+# 3. 环保小智文件索引
+python scripts\scan_xiaozhi.py full
+
+# 4. 深度废止检测（可选，约30分钟）
+python scripts\scan_xiaozhi.py detect

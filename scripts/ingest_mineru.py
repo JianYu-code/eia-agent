@@ -79,6 +79,12 @@ def _guess_standard_id(title: str) -> str:
     return ""
 
 
+def _normalize_std_id(sid: str) -> str:
+    s = sid.strip().upper()
+    s = s.replace(" ", "").replace("\u2014", "-").replace("—", "-").replace("–", "-").replace("\t", "")
+    return s
+
+
 OBSOLETE_FILENAME_KEYWORDS = ["废止", "作废", "失效", "已被替代", "已被代替", "（废止）", "（作废）"]
 
 REPLACEMENT_PATTERNS = [
@@ -114,15 +120,18 @@ def _find_replacement_relationships(all_files: list[dict]) -> list[dict]:
             actions.append({"source": f["path"], "action": "mark_self_obsolete", "targets": []})
             continue
 
-        replaced_ids = set()
-        for pattern in REPLACEMENT_PATTERNS:
-            for match in pattern.finditer(head):
-                raw = match.group(0)
-                std_match = STD_ID_PATTERN.search(raw)
-                if std_match:
-                    std_id = std_match.group().strip()
-                    if std_id != _guess_standard_id(title):
-                        replaced_ids.add(std_id)
+    replaced_ids = set()
+    for pattern in REPLACEMENT_PATTERNS:
+        for match in pattern.finditer(head):
+            raw = match.group(0)
+            std_match = STD_ID_PATTERN.search(raw)
+            if std_match:
+                std_id = _normalize_std_id(std_match.group())
+                self_id = _normalize_std_id(_guess_standard_id(title))
+                if std_id and std_id != self_id:
+                    replaced_ids.add(std_id)
+                    if len(replaced_ids) <= 10:
+                        print(f"  [检测] {Path(f['path']).name}: \"{raw.strip()[:80]}\" → {std_id}")
 
         if replaced_ids:
             self_id = _guess_standard_id(title)
@@ -139,8 +148,8 @@ def _find_replacement_relationships(all_files: list[dict]) -> list[dict]:
 
 
 def detect_and_apply_obsolete(all_files: list[dict] = None):
-    """扫描已入库内容，自动检测废止/替代关系并打标"""
-    from app.knowledge.retriever import get_table, mark_deprecated
+    """扫描已入库内容，自动检测废止/替代关系并打标（批量更新，一次重建）"""
+    from app.knowledge.retriever import get_table, mark_deprecated_batch
     print("=== 检测废止/替代关系 ===")
 
     if all_files is None:
@@ -150,35 +159,48 @@ def detect_and_apply_obsolete(all_files: list[dict] = None):
     actions = _find_replacement_relationships(all_files)
     print(f"发现 {len(actions)} 个废止/替代关系")
 
+    batch_updates = {}  # {source_path: replaced_by}
+
+    table = get_table()
+    std_to_sources = {}
+    if table and table.count_rows() > 0:
+        at = table.to_lance().to_table()
+        all_sids = at.column("standard_id").to_pylist()
+        all_srcs = at.column("source").to_pylist()
+        for sid, src in zip(all_sids, all_srcs):
+            nsid = _normalize_std_id(sid or "")
+            if nsid:
+                if nsid not in std_to_sources:
+                    std_to_sources[nsid] = set()
+                std_to_sources[nsid].add(src)
+
     self_obsolete = 0
     replaced = 0
     for action in actions:
         if action["action"] == "mark_self_obsolete":
-            mark_deprecated(action["source"])
+            batch_updates[action["source"]] = ""
             self_obsolete += 1
             print(f"  [自身废止] {Path(action['source']).name}")
         elif action["action"] == "mark_others_obsolete":
             for target_id in action["targets"]:
-                table = get_table()
-                if table is None or table.count_rows() == 0:
-                    continue
-                at = table.to_lance().to_table()
-                import pyarrow.compute as pc
-                mask = pc.equal(at.column("standard_id"), target_id)
-                matched = at.filter(mask)
-                if matched.num_rows > 0:
-                    sources = set(matched.column("source").to_pylist())
-                    for src in sources:
-                        reason = action.get("replacement_reason", "")
-                        mark_deprecated(src, reason)
+                ntid = _normalize_std_id(target_id)
+                if ntid in std_to_sources:
+                    reason = action.get("replacement_reason", "")
+                    for src in std_to_sources[ntid]:
+                        batch_updates[src] = reason
                         replaced += 1
-                        print(f"  [标记废止] {Path(src).name} → 被 {action['replacement_reason']}")
+                        print(f"  [标记废止] {Path(src).name} → {reason}")
 
     print(f"\n自身废止: {self_obsolete} 个文件")
-    print(f"标记替代: {replaced} 个文件")def _make_row(md_file: dict, chunk_idx: int, chunk: dict) -> dict:
+    print(f"标记替代: {replaced} 个文件")
+    print(f"批量应用变更...")
+    mark_deprecated_batch(list(batch_updates.items()))
+
+
+def _make_row(md_file: dict, chunk_idx: int, chunk: dict) -> dict:
     import hashlib
     chunk_id = hashlib.md5((md_file["path"] + str(chunk_idx)).encode()).hexdigest()
-    standard_id = _guess_standard_id(md_file["title"])
+    standard_id = _normalize_std_id(_guess_standard_id(md_file["title"]))
     heading = chunk.get("heading", "") if chunk.get("heading") else md_file["title"]
     return {
         "id": chunk_id,

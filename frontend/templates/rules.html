@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-title">审核规则</div>
+<div class="page-subtitle">系统内置的环评/验收/应急预案审核规则。规则按 YAML 配置存储，可随时编辑。</div>
+
+<div class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px;">
+  {% for domain, label in [('eia','环评报告审核'), ('acceptance','竣工环保验收'), ('emergency','应急预案审核')] %}
+  <div class="panel">
+    <div class="font-semibold mb-2" style="font-size:15px;color:#0f172a;">{{ label }}</div>
+    <div class="space-y-2" id="rules-{{ domain }}">加载中...</div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const rules = {
+  eia: [
+    {id:'R-STRUCT-001',sev:'P0',cat:'结构完整性',title:'环评报告应包含必备章节',law:'HJ 2.1-2016'},
+    {id:'R-STD-001',sev:'P0',cat:'标准引用',title:'报告引用的标准应为现行有效版本',law:'标准化法'},
+    {id:'R-SRC-001',sev:'P0',cat:'源强核算',title:'污染源识别应完整，不得遗漏可能的评价因子',law:'源强核算指南'},
+    {id:'R-SRC-002',sev:'P0',cat:'源强核算',title:'污染源源强核算方法应符合技术指南规定的优先次序',law:'源强核算指南'},
+    {id:'R-SRC-003',sev:'P1',cat:'源强核算',title:'采用类比法时应进行类比条件分析',law:'HJ 884-2018'},
+    {id:'R-CLS-001',sev:'P0',cat:'分类管理',title:'建设项目环评等级判定应符合分类管理名录规定',law:'分类管理名录(2021)'},
+    {id:'R-MSR-001',sev:'P1',cat:'污染防治',title:'污染治理措施应符合可行技术指南要求',law:'可行技术指南'},
+    {id:'R-EVL-001',sev:'P0',cat:'评价等级',title:'环境影响评价工作等级判定应符合导则规定',law:'技术导则'},
+    {id:'R-SRC-004',sev:'P0',cat:'源强核算',title:'AI自动检查核算方法/类比条件/因子遗漏',law:'源强核算指南'},
+    {id:'R-MSR-002',sev:'P1',cat:'污染防治',title:'AI自动检查措施可行性/处理效率',law:'可行技术指南'},
+    {id:'R-CLS-002',sev:'P1',cat:'分类管理',title:'AI自动检查行业分类/环评等级/敏感区',law:'分类管理名录'},
+  ],
+  acceptance: [
+    {id:'R-ACC-001',sev:'P0',cat:'验收依据',title:'验收监测报告应明确验收依据和验收标准',law:'暂行办法'},
+    {id:'R-ACC-002',sev:'P1',cat:'监测方案',title:'验收监测方案应覆盖全部污染源和污染物',law:'验收技术规范'},
+    {id:'R-ACC-003',sev:'P0',cat:'验收结论',title:'验收结论应与监测结果一致',law:'暂行办法'},
+  ],
+  emergency: [
+    {id:'R-EMG-001',sev:'P0',cat:'风险识别',title:'应急预案应完整识别环境风险源',law:'应急管理暂行办法'},
+    {id:'R-EMG-002',sev:'P0',cat:'应急措施',title:'应急预案应包含完整的应急响应措施',law:'备案管理办法'},
+    {id:'R-EMG-003',sev:'P1',cat:'演练要求',title:'应包含应急演练计划和培训安排',law:'应急管理暂行办法'},
+  ],
+};
+
+for (const [domain, items] of Object.entries(rules)) {
+  const box = document.getElementById('rules-'+domain);
+  box.innerHTML = items.map(r => `
+    <div class="panel-soft" style="padding:8px 10px;">
+      <div class="flex items-start justify-between gap-2">
+        <div>
+          <div class="text-sm font-semibold" style="color:#0f172a;">${esc(r.title)}</div>
+          <div class="flex items-center gap-2 mt-1">
+            <span class="badge badge-uploaded text-xs">${esc(r.id)}</span>
+            <span class="text-muted text-xs">${esc(r.law)}</span>
+          </div>
+        </div>
+        <span class="badge ${r.sev==='P0'?'badge-failed':r.sev==='P1'?'badge-running':'badge-queued'}">${r.sev}</span>
+      </div>
+    </div>
+  `).join('');
+}
+function esc(s) { return (s||'').replace(/</g,'&lt;'); }
+</script>
+{% endblock %}

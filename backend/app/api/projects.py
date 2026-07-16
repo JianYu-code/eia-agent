@@ -133,11 +133,46 @@ async def view_report(project_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/projects/{project_id}/report/download")
-async def download_report(project_id: str, db: AsyncSession = Depends(get_db)):
+async def download_report(
+    project_id: str,
+    format: str = "html",
+    db: AsyncSession = Depends(get_db),
+):
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
     if not project or not project.report_path:
         raise HTTPException(status_code=404, detail="报告不存在")
+
+    if format == "docx":
+        try:
+            from docx import Document
+            from bs4 import BeautifulSoup
+            doc = Document()
+            doc.add_heading(f"审核报告 - {project.name}", level=0)
+            html = open(project.report_path, "r", encoding="utf-8").read()
+            soup = BeautifulSoup(html, "lxml")
+            for el in soup.select("h1,h2,h3,p,li"):
+                tag = el.name
+                text = el.get_text(strip=True)
+                if not text:
+                    continue
+                if tag == "h1":
+                    doc.add_heading(text, level=1)
+                elif tag == "h2":
+                    doc.add_heading(text, level=2)
+                elif tag == "h3":
+                    doc.add_heading(text, level=3)
+                else:
+                    doc.add_paragraph(text)
+            import tempfile
+            tmp = tempfile.NamedTemporaryFile(suffix=".docx", delete=False)
+            doc.save(tmp.name)
+            tmp.close()
+            return FileResponse(tmp.name, filename=f"审核报告_{project.name}.docx",
+                               media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        except ImportError:
+            raise HTTPException(status_code=400, detail="需要安装 beautifulsoup4 和 lxml")
+
     return FileResponse(project.report_path, filename=f"审核报告_{project.name}.html")
 
 

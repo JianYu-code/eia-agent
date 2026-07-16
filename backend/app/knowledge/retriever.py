@@ -146,16 +146,67 @@ def mark_deprecated(source: str, replaced_by: str = ""):
     table = get_table()
     if table is None or table.count_rows() == 0:
         return
-    import pyarrow.compute as pc
+    import pyarrow as pa
     at = table.to_lance().to_table()
-    dep_mask = pc.equal(at.column("source"), source)
-    updated_deprecated = pc.if_else(dep_mask, pc.scalar(True), at.column("deprecated"))
-    updated_replaced = pc.if_else(dep_mask, pc.scalar(replaced_by), at.column("replaced_by"))
 
-    new_at = at.set_column(at.schema.get_field_index("deprecated"), "deprecated", updated_deprecated)
-    new_at = new_at.set_column(new_at.schema.get_field_index("replaced_by"), "replaced_by", updated_replaced)
+    sources = at.column("source").to_pylist()
+    dep_list = list(at.column("deprecated").to_pylist())
+    rep_list = list(at.column("replaced_by").to_pylist())
+
+    changed = False
+    for i, src in enumerate(sources):
+        if src == source:
+            dep_list[i] = True
+            rep_list[i] = replaced_by
+            changed = True
+
+    if not changed:
+        return
+
+    idx_dep = at.schema.get_field_index("deprecated")
+    idx_rep = at.schema.get_field_index("replaced_by")
+    new_at = at.set_column(idx_dep, "deprecated", pa.array(dep_list, type=pa.bool_()))
+    new_at = new_at.set_column(idx_rep, "replaced_by", pa.array(rep_list, type=pa.string()))
 
     get_db().drop_table(LANCE_TABLE, ignore_missing=True)
     get_db().create_table(LANCE_TABLE, new_at, mode="overwrite")
     global _table
     _table = None
+
+
+def mark_deprecated_batch(updates: list[tuple[str, str]]):
+    """批量标记废止: [(source_path, replaced_by), ...] — 一次重建完成"""
+    if not updates:
+        return
+    table = get_table()
+    if table is None or table.count_rows() == 0:
+        return
+    import pyarrow as pa
+    at = table.to_lance().to_table()
+
+    update_map = {src: reason for src, reason in updates}
+
+    sources = at.column("source").to_pylist()
+    dep_list = list(at.column("deprecated").to_pylist())
+    rep_list = list(at.column("replaced_by").to_pylist())
+
+    changed = 0
+    for i, src in enumerate(sources):
+        if src in update_map:
+            dep_list[i] = True
+            rep_list[i] = update_map[src]
+            changed += 1
+
+    if not changed:
+        return
+
+    idx_dep = at.schema.get_field_index("deprecated")
+    idx_rep = at.schema.get_field_index("replaced_by")
+    new_at = at.set_column(idx_dep, "deprecated", pa.array(dep_list, type=pa.bool_()))
+    new_at = new_at.set_column(idx_rep, "replaced_by", pa.array(rep_list, type=pa.string()))
+
+    get_db().drop_table(LANCE_TABLE, ignore_missing=True)
+    get_db().create_table(LANCE_TABLE, new_at, mode="overwrite")
+    global _table
+    _table = None
+    print(f"  批量标记 {changed} 条记录为废止")

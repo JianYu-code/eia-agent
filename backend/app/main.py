@@ -63,6 +63,11 @@ async def app_knowledge(request: Request):
     return templates.TemplateResponse("knowledge.html", {"request": request})
 
 
+@app.get("/app/rules", response_class=HTMLResponse)
+async def app_rules(request: Request):
+    return templates.TemplateResponse("rules.html", {"request": request})
+
+
 @app.get("/app/settings", response_class=HTMLResponse)
 async def app_settings(request: Request):
     return templates.TemplateResponse("settings.html", {"request": request})

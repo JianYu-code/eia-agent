@@ -30,9 +30,12 @@ class Project(Base):
 
     def to_dict(self):
         issues = self.issues or {}
-        p0 = len(issues.get("P0", []))
-        p1 = len(issues.get("P1", []))
-        p2 = len(issues.get("P2", []))
+        p0_val = issues.get("P0", 0)
+        p1_val = issues.get("P1", 0)
+        p2_val = issues.get("P2", 0)
+        p0 = len(p0_val) if isinstance(p0_val, list) else (p0_val or 0)
+        p1 = len(p1_val) if isinstance(p1_val, list) else (p1_val or 0)
+        p2 = len(p2_val) if isinstance(p2_val, list) else (p2_val or 0)
         return {
             "id": self.id,
             "name": self.name,

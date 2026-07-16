@@ -57,10 +57,11 @@ async def run_audit_pipeline(project_id: str):
 
         chapter_titles = [c["title"] for c in chapters]
         chapter_text = " ".join(chapter_titles)
+        search_text = full_text if (len(chapters) == 1 and chapters[0]["title"] == "全文") else chapter_text
 
         for required in REQUIRED_CHAPTERS:
-            found = any(required in title for title in chapter_titles)
-            if not found and required not in chapter_text:
+            found = required in search_text
+            if not found:
                 all_issues.append(build_issue(
                     rule_id="R-STRUCT-001",
                     severity="P0",
@@ -98,13 +99,22 @@ async def run_audit_pipeline(project_id: str):
         await update_progress(45, "标准引用检查", f"标准引用检查完成", "step")
 
         await update_progress(50, "源强核算检查", "开始检查源强核算...")
-        await update_progress(65, "源强核算检查", "源强核算检查完成（需 LLM 深度分析）", "step")
+        from app.engine.steps.source import check_source_strength
+        src_issues = await check_source_strength(full_text, chapters)
+        all_issues.extend(src_issues)
+        await update_progress(65, "源强核算检查", f"源强核算检查完成，发现 {len(src_issues)} 个问题", "step")
 
         await update_progress(70, "措施可行性检查", "开始检查污染防治措施...")
-        await update_progress(80, "措施可行性检查", "措施可行性检查完成", "step")
+        from app.engine.steps.measures import check_measures
+        msr_issues = await check_measures(full_text)
+        all_issues.extend(msr_issues)
+        await update_progress(75, "措施可行性检查", f"措施可行性检查完成，发现 {len(msr_issues)} 个问题", "step")
 
-        await update_progress(85, "分类管理判定", "开始判定环评分类管理等级...")
-        await update_progress(90, "分类管理判定", "分类管理判定完成", "step")
+        await update_progress(80, "分类管理判定", "开始判定环评分类管理等级...")
+        from app.engine.steps.classification import check_classification
+        cls_issues = await check_classification(full_text)
+        all_issues.extend(cls_issues)
+        await update_progress(88, "分类管理判定", f"分类管理判定完成，发现 {len(cls_issues)} 个问题", "step")
 
         await update_progress(92, "生成报告", "开始生成审核报告...")
 

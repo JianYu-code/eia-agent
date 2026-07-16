@@ -2,22 +2,69 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="refresh" content="0;url=/app/overview">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>恒新环保智能系统</title>
 <link rel="stylesheet" href="/static/css/style.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  .hero { background: linear-gradient(135deg,#0f766e 0%,#14b8a6 50%,#0d9488 100%); color:#fff; padding:80px 20px 60px; text-align:center; }
+  .hero h1 { font-size:42px; font-weight:900; margin:0; }
+  .hero p { font-size:18px; opacity:.85; margin:16px 0 0; max-width:600px; margin-left:auto; margin-right:auto; line-height:1.7; }
+  .hero-actions { display:flex; gap:12px; justify-content:center; margin-top:28px; }
+  .hero .btn { padding:12px 24px; font-size:15px; border-radius:8px; }
+  .hero .btn-white { background:#fff; color:#0f766e; font-weight:800; }
+  .hero .btn-ghost { background:transparent; color:#fff; border:2px solid rgba(255,255,255,.5); }
+  .section { max-width:1100px; margin:0 auto; padding:60px 20px; }
+  .section h2 { text-align:center; font-size:28px; font-weight:900; color:#0f172a; margin-bottom:32px; }
+  .cap-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  .cap-card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:22px; box-shadow:var(--shadow-sm); transition:all .2s; }
+  .cap-card:hover { transform:translateY(-3px); border-color:#99f6e4; box-shadow:0 20px 40px rgba(15,23,42,.08); }
+  .cap-card i { width:40px; height:40px; border-radius:10px; display:grid; place-items:center; font-size:18px; margin-bottom:14px; }
+  .green i { background:#d1fae5; color:#059669; }
+  .blue i { background:#dbeafe; color:#2563eb; }
+  .amber i { background:#fef3c7; color:#d97706; }
+  .rose i { background:#ffe4e6; color:#e11d48; }
+  .cap-card h3 { margin:0; font-size:16px; font-weight:900; color:#0f172a; }
+  .cap-card p { margin:8px 0 0; color:var(--muted); font-size:13px; line-height:1.65; }
+  .footer { text-align:center; padding:40px 20px; color:var(--muted); font-size:13px; }
+  @media (max-width:768px) { .cap-grid { grid-template-columns:repeat(2,1fr); } .hero h1 { font-size:28px; } }
+</style>
 </head>
-<body class="home-mode" style="display:flex;align-items:center;justify-content:center;min-height:100vh;">
+<body style="background:#f7fafb;overflow:auto;min-height:100vh;">
 
-<div class="auth-card" style="text-align:center;">
-  <div style="margin-bottom:24px;">
-    <div style="width:56px;height:56px;border-radius:14px;background:#ccfbf1;display:grid;place-items:center;margin:0 auto 12px;">
-      <i class="fas fa-leaf" style="font-size:24px;color:var(--accent-dark);"></i>
-    </div>
-    <h2 style="font-size:22px;font-weight:900;color:#0f172a;">恒新环保智能系统</h2>
-    <p style="color:var(--muted);font-size:13px;margin-top:4px;">AI 驱动 · 知识库赋能 · 工单化管理</p>
+<div class="hero">
+  <h1>恒新环保智能系统</h1>
+  <p>AI 驱动的环评智能审核平台。上传报告，自动审核，输出 P0/P1/P2 问题清单和结构化审核报告。基于 3,000+ 环境标准知识库提供 RAG 问答。</p>
+  <div class="hero-actions">
+    <a href="/app/overview" class="btn btn-white"><i class="fas fa-rocket"></i>进入系统</a>
+    <a href="/app/audit" class="btn btn-ghost"><i class="fas fa-upload"></i>上传审核</a>
   </div>
-  <p style="color:var(--muted);font-size:14px;">正在跳转...</p>
+</div>
+
+<div class="section">
+  <h2>核心能力</h2>
+  <div class="cap-grid">
+    <div class="cap-card green"><i class="fas fa-brain"></i><h3>智能审核引擎</h3><p>7步审核管道：文本提取→章节完整→标准引用→源强核算→措施审查→分类判定→报告生成</p></div>
+    <div class="cap-card blue"><i class="fas fa-database"></i><h3>知识库 RAG</h3><p>3,000+ 环境标准/导则/规范全文索引。语义检索 + 大模型问答，带来源引用</p></div>
+    <div class="cap-card amber"><i class="fas fa-file-lines"></i><h3>文件检索</h3><p>12,000+ 环保标准/报告文件按名称搜索。PDF/DOCX 在线预览，现行/废止标识</p></div>
+    <div class="cap-card rose"><i class="fas fa-chart-bar"></i><h3>审核报告</h3><p>P0/P1/P2 分级问题清单。HTML/DOCX 双格式下载。包含法规依据和修改建议</p></div>
+  </div>
+</div>
+
+<div class="section" style="background:#f0fdfa;max-width:none;padding:60px 0;">
+  <div style="max-width:900px;margin:0 auto;padding:0 20px;">
+    <h2>技术架构</h2>
+    <div class="grid grid-3 gap-3" style="margin-top:24px;">
+      <div class="panel-soft text-center" style="padding:20px;"><i class="fas fa-server" style="font-size:24px;color:var(--accent);display:block;margin-bottom:10px;"></i><div style="font-weight:700;">FastAPI + SQLite</div><div class="text-muted text-sm mt-1">异步后端，轻量部署</div></div>
+      <div class="panel-soft text-center" style="padding:20px;"><i class="fas fa-vector-square" style="font-size:24px;color:#2563eb;display:block;margin-bottom:10px;"></i><div style="font-weight:700;">LanceDB 向量库</div><div class="text-muted text-sm mt-1">列式存储，秒级检索</div></div>
+      <div class="panel-soft text-center" style="padding:20px;"><i class="fas fa-robot" style="font-size:24px;color:#d97706;display:block;margin-bottom:10px;"></i><div style="font-weight:700;">Ollama + LLM</div><div class="text-muted text-sm mt-1">本地 bge-m3 向量 + 云端大模型</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  恒新环保智能系统 · 内网部署 · 仅供内部使用<br>
+  <span style="opacity:.6;">基于 FastAPI + LanceDB + Ollama + LangChain 构建</span>
 </div>
 
 </body>
