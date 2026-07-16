@@ -5,7 +5,7 @@ from pathlib import Path
 RULES_DIR = Path(__file__).resolve().parent.parent.parent / "rules"
 
 
-def load_rules(domain: str = "eia") -> list[dict]:
+def load_rules(domain: str = "eia", report_type: str = "报告书") -> list[dict]:
     rules = []
     files = [f"{domain}_rules.yaml"]
     for fname in files:
@@ -14,7 +14,11 @@ def load_rules(domain: str = "eia") -> list[dict]:
             with open(path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f)
             if isinstance(data, list):
-                rules.extend(data)
+                for rule in data:
+                    rt = rule.get("report_type", "")
+                    if rt and rt != report_type:
+                        continue
+                    rules.append(rule)
     return rules
 
 

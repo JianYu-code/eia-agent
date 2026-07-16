@@ -39,10 +39,11 @@ async def run_audit_pipeline(project_id: str):
         chapters = text_data.get("chapters", [])
         await update_progress(15, "提取文本", f"文本提取完成，{len(full_text)} 字符", "success")
 
-        rules = load_rules(project.audit_domain or "eia")
+        report_type = "报告表" if "报告表" in full_text[:2000] else "报告书"
+        rules = load_rules(project.audit_domain or "eia", report_type)
         all_issues = []
 
-        await update_progress(20, "规则检查", f"加载 {len(rules)} 条审核规则，开始逐条检查...")
+        await update_progress(20, "规则检查", f"识别为{report_type}，加载 {len(rules)} 条审核规则", "step")
 
         from app.knowledge.retriever import search_knowledge
         from app.engine.standards_index import exact_standard_lookup

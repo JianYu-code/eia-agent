@@ -3,8 +3,9 @@
 - rule_id: R-STRUCT-001
   domain: [eia, acceptance, emergency]
   category: 结构完整性
+  report_type: "报告书"
   severity: P0
-  title: "环评报告应包含必备章节"
+  title: "环评报告书应包含必备章节"
   check_type: keyword_match
   check_config:
     required_chapters:
@@ -21,6 +22,23 @@
       - "环境管理与监测计划"
       - "环境影响评价结论"
   law_ref: "《建设项目环境影响评价技术导则 总纲》（HJ 2.1-2016）"
+
+- rule_id: R-STRUCT-001-TABLE
+  domain: [eia]
+  category: 结构完整性
+  report_type: "报告表"
+  severity: P0
+  title: "环境影响报告表应包含必备章节"
+  check_type: keyword_match
+  check_config:
+    required_chapters:
+      - "建设项目基本情况"
+      - "工程分析"
+      - "环境影响分析"
+      - "环境保护措施"
+      - "评价结论"
+      - "污染物排放量汇总"
+  law_ref: "《建设项目环境影响评价技术导则 总纲》（HJ 2.1-2016）及报告表编制要求"
 
 - rule_id: R-STD-001
   domain: [eia, acceptance, emergency]
