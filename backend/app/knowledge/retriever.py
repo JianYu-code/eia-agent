@@ -50,16 +50,19 @@ def search_knowledge(query: str, top_k: int = 5) -> list[dict]:
 
     items = []
     for r in results:
+        full_text = r.get("text", "") or ""
+        excerpt = full_text[:500] if len(full_text) > 500 else full_text
         items.append({
             "id": r.get("id", ""),
             "title": r.get("title", "未命名"),
-            "relative_path": r.get("heading", ""),
+            "relative_path": f"{r.get('heading', '')}",
             "category": r.get("category", ""),
-            "excerpt": (r.get("text", "") or "")[:500],
+            "excerpt": excerpt,
             "score": r.get("_distance", 0),
             "deprecated": bool(r.get("deprecated", False)),
             "replaced_by": r.get("replaced_by", ""),
             "standard_id": r.get("standard_id", ""),
+            "source": r.get("source", ""),
         })
     return items
 
