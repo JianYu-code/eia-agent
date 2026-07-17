@@ -1,0 +1,94 @@
+# 环评报告表审核规则（6章简化版）
+# 报告表比报告书少很多内容，不需要完整的技术导则审核
+
+- rule_id: R-TABLE-01
+  domain: [eia]
+  category: 结构完整性
+  report_type: "报告表"
+  severity: P0
+  title: "报告表应包含建设项目基本情况"
+  check_type: keyword_match
+  check_config:
+    required_chapters:
+      - "建设项目基本情况"
+      - "项目名称"
+  law_ref: "《建设项目环境影响评价技术导则 总纲》（HJ 2.1-2016）"
+
+- rule_id: R-TABLE-02
+  domain: [eia]
+  category: 结构完整性
+  report_type: "报告表"
+  severity: P0
+  title: "报告表应包含工程分析"
+  check_type: keyword_match
+  check_config:
+    required_chapters:
+      - "工程分析"
+      - "生产工艺"
+  law_ref: "环境影响报告表编制要求"
+
+- rule_id: R-TABLE-03
+  domain: [eia]
+  category: 结构完整性
+  report_type: "报告表"
+  severity: P0
+  title: "报告表应包含环境影响分析"
+  check_type: keyword_match
+  check_config:
+    required_chapters:
+      - "环境影响分析"
+      - "环境保护措施"
+  law_ref: "环境影响报告表编制要求"
+
+- rule_id: R-TABLE-04
+  domain: [eia]
+  category: 结构完整性
+  report_type: "报告表"
+  severity: P0
+  title: "报告表应包含评价结论"
+  check_type: keyword_match
+  check_config:
+    required_keywords:
+      - "评价结论"
+      - "审批意见"
+  law_ref: "环境影响报告表编制要求"
+
+- rule_id: R-TABLE-05
+  domain: [eia]
+  category: 工程分析
+  report_type: "报告表"
+  severity: P0
+  title: "报告表的工程分析应包含主要污染源和排放量"
+  check_type: llm_judge
+  check_config:
+    description: |
+      自问：①报告表中是否给出了各污染源（废气、废水、噪声、固废）的排放量？②排放量数值是否有基本依据（至少是经验估算或设备参数推算）？③是否标注了主要治理措施？
+      标准：报告表虽简化但应给出主要污染物的排放量估算。
+      判定：完全未给出任何排放量数据 → P0
+  law_ref: "环境影响报告表编制要求"
+
+- rule_id: R-TABLE-06
+  domain: [eia]
+  category: 污染防治
+  report_type: "报告表"
+  severity: P1
+  title: "治理措施应有基本描述和预期效果"
+  check_type: llm_judge
+  check_config:
+    description: |
+      自问：①是否描述了每类污染的治理措施（至少说明用什么处理、预期效率）？②是否有简单的达标分析（治理后能否满足排放标准）？
+      判定：仅写"达标排放"无具体措施 → P1
+  law_ref: "环境影响报告表编制要求"
+
+- rule_id: R-TABLE-07
+  domain: [eia]
+  category: 审批
+  report_type: "报告表"
+  severity: P2
+  title: "报告表应包含污染物排放量汇总表"
+  check_type: keyword_match
+  check_config:
+    required_keywords:
+      - "排放量汇总"
+      - "总量控制"
+  law_ref: "环境影响报告表编制要求"

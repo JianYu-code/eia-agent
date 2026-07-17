@@ -8,6 +8,8 @@ RULES_DIR = Path(__file__).resolve().parent.parent.parent / "rules"
 def load_rules(domain: str = "eia", report_type: str = "报告书") -> list[dict]:
     rules = []
     files = [f"{domain}_rules.yaml"]
+    if report_type == "报告表":
+        files.append(f"{domain}_rules_table.yaml")
     for fname in files:
         path = RULES_DIR / fname
         if path.exists():
@@ -108,7 +110,8 @@ def run_cross_reference_check(rule: dict, full_text: str, kb_results: list[dict]
 
 
 async def run_llm_check(rule: dict, full_text: str, kb_results: list[dict]) -> list[dict]:
-    """LLM 复杂判断（仅对标记为 llm_judge 的规则）。带缓存：相同报告+规则复用结果"""
+    """LLM 复判断（仅对标记为 llm_judge 的规则）。带缓存：相同报告+规则复用结果。
+    采用自问自答模式：先问'报告是否满足此要求'，再给出推理过程和结论。"""
     from app.llm.client import chat, get_active_profile
     from app.engine.llm_cache import get as cache_get, set as cache_set
 
@@ -125,22 +128,38 @@ async def run_llm_check(rule: dict, full_text: str, kb_results: list[dict]) -> l
     config = rule.get("check_config", {})
     kb_ctx = "\n\n".join([f"[{r['title']}] {r['excerpt'][:400]}" for r in kb_results[:5]])
 
-    prompt = f"""你是环评审核专家。请针对以下规则逐条检查：
+    prompt = f"""你是一名有10年经验的环评审核专家。请使用**自问自答**的方式审核以下报告。
 
-规则：{rule.get('title', '')}
-依据：{rule.get('law_ref', '')}
+审核规则：{rule.get('title', '')}
+法规依据：{rule.get('law_ref', '')}
 检查要点：{config.get('prompt_partial', config.get('description', ''))}
 
-参考标准：
+参考标准原文：
 {kb_ctx or '无相关标准'}
 
-报告内容（仅相关段落）：
+报告内容：
 {full_text[:5000]}
 
-请判断是否存在违反此规则的问题。如果存在，输出JSON格式：
-{{"severity": "P0/P1/P2", "title": "问题标题", "finding": "具体发现（引用报告原文）", "law_ref": "法规依据", "suggestion": "修改建议"}}
-如果不存在问题，输出 null。
-只输出一行JSON或null，不要其他内容。"""
+请按以下步骤进行审核：
+
+【第一步：提问】
+首先提出1-2个关键问题来检验报告是否满足此规则。例如："报告中是否提供了XX？""XX内容是否充分？"
+
+【第二步：判断】
+根据报告内容和标准原文，逐一回答上述问题。引用报告中的原文作为证据。
+
+【第三步：结论】
+综合判断是否存在违反此规则的问题。如果存在多个小问题，合并输出。
+
+如果确实存在问题，输出JSON（不要带```标记）：
+{{"severity":"P0/P1/P2","title":"问题标题","finding":"具体发现（引用报告原文）","reasoning":"推理过程（包含：①自问→②判断依据→③标准对照→④最终判定）","law_ref":"法规依据（标准编号+条款名）","suggestion":"修改建议（具体可操作）"}}
+
+如果不存在问题，输出: null
+
+注意：
+- reasoning字段必须包含完整推理链：①自问（提出了什么问题）②判断（报告中有什么/缺什么）③对照（标准要求什么）④判定（为什么定P0/P1/P2）
+- 所有标准编号必须真实，不得编造。不确定时写"相关技术导则"
+- 只输出一行JSON或null，不要任何其他内容。"""
 
     try:
         resp = await chat(prompt, profile=profile)
@@ -159,6 +178,7 @@ async def run_llm_check(rule: dict, full_text: str, kb_results: list[dict]) -> l
                 "category": rule.get("category", ""),
                 "title": data["title"],
                 "finding": data.get("finding", ""),
+                "reasoning": data.get("reasoning", data.get("finding", "")),
                 "evidence": data.get("finding", ""),
                 "law_ref": data.get("law_ref", rule.get("law_ref", "")),
                 "suggestion": data.get("suggestion", ""),

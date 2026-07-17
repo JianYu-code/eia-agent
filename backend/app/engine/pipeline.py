@@ -124,11 +124,13 @@ def _generate_report(project_name: str, graded: dict, full_text: str, standards:
         issues_html += f'<h3 class="{color_class}">{severity} 严重问题 ({len(issues)}项)</h3>'
         for i, iss in enumerate(issues, 1):
             evidence_html = f'<div class="issue-evidence"><strong>报告原文：</strong>{iss["evidence"]}</div>' if iss.get("evidence") else ""
+            reasoning_html = f'<div class="issue-reasoning"><strong>AI推理过程：</strong><p>{iss["reasoning"]}</p></div>' if iss.get("reasoning") else ""
             issues_html += f"""
             <div class="issue-item">
                 <div class="issue-header">{i}. {iss['title']}</div>
                 <div class="issue-finding"><strong>发现：</strong>{iss['finding']}</div>
                 {evidence_html}
+                {reasoning_html}
                 {f'<div class="issue-law"><strong>依据：</strong>{iss["law_ref"]}</div>' if iss.get('law_ref') else ''}
                 <div class="issue-suggestion"><strong>建议：</strong>{iss['suggestion']}</div>
                 {f'<div class="issue-rule" style="color:var(--muted);font-size:11px;margin-top:6px;">规则: {iss["rule_id"]}</div>' if iss.get('rule_id') else ''}
@@ -156,6 +158,8 @@ h1 {{ border-bottom: 3px solid #4fc3f7; padding-bottom: 12px; }}
 .issue-header {{ font-weight: 700; font-size: 16px; color: #0f172a; margin-bottom: 8px; }}
 .issue-finding, .issue-evidence, .issue-law, .issue-suggestion {{ margin: 6px 0; line-height: 1.7; }}
 .issue-evidence {{ background: #f8fafc; padding: 8px 10px; border-left: 3px solid #94a3b8; font-style: italic; color: #475569; }}
+.issue-reasoning {{ background: #fffbe6; padding: 10px 12px; border-left: 3px solid #f59e0b; margin: 8px 0; font-size: 13px; line-height: 1.8; color: #475569; }}
+.issue-reasoning p {{ margin: 4px 0; }}
 .issue-suggestion {{ color: #059669; }}
 h3.p0 {{ color: #ef4444; border-left: 4px solid #ef4444; padding-left: 12px; }}
 h3.p1 {{ color: #f59e0b; border-left: 4px solid #f59e0b; padding-left: 12px; }}
