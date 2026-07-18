@@ -75,7 +75,36 @@ async def run_audit_pipeline(project_id: str):
             if (idx + 1) % 3 == 0 or idx == total_rules - 1:
                 await update_progress(progress, f"规则检查 ({idx+1}/{total_rules})", f"已完成 {idx+1}/{total_rules} 条，累计 {len(all_issues)} 个问题", "step")
 
-        await update_progress(82, "规则检查完成", f"全部 {total_rules} 条规则检查完毕，发现 {len(all_issues)} 个问题", "step")
+        await update_progress(82, "综合审查", "AI Agent 综合审查所有发现...", "step")
+
+        if all_issues:
+            from app.engine.rules_engine import run_llm_check as _agent_round
+            agent_rule = {
+                "rule_id": "R-AGENT-REVIEW",
+                "check_config": {
+                    "description": f"你刚才审核了一份环评报告，已经发现了 {len(all_issues)} 个问题（P0: {len(graded.get('P0', []))} 个，P1: {len(graded.get('P1', []))} 个，P2: {len(graded.get('P2', []))} 个）。"
+                    f"\n\n请完成以下工作：\n"
+                    f"1. 检查是否有自相矛盾的问题（如某条说『缺少编制依据』但同时说『编制依据引用正确』）\n"
+                    f"2. 合并同类问题（如多条关于源强核算的问题可以合并为一个综合性意见）\n"
+                    f"3. 对整体报告质量给出一个综合评价等级（A/B/C/D）和一句话总结\n"
+                    f"4. 列出最需要优先整改的 3 个问题\n\n"
+                    f"已发现的问题清单（标题+级别）：\n" +
+                    "\n".join([f"- [{iss.get('severity','?')}] {iss.get('title','')}" for iss in all_issues[:30]]),
+                },
+                "category": "综合审查",
+                "title": "AI Agent 综合审查与质量评级",
+                "law_ref": "HJ 2.1-2016",
+            }
+            try:
+                review_issues = await _agent_round(agent_rule, full_text, standards_kb)
+                if review_issues:
+                    for iss in review_issues:
+                        iss["rule_id"] = "R-AGENT-REVIEW"
+                        iss["category"] = "综合审查"
+                    all_issues.extend(review_issues)
+            except Exception:
+                pass
+            await update_progress(85, "综合审查完成", "AI Agent 综合审查完成", "step")
 
         await update_progress(88, "生成报告", "开始生成审核报告...")
         graded = grade_issues(all_issues)
@@ -123,15 +152,22 @@ def _generate_report(project_name: str, graded: dict, full_text: str, standards:
             continue
         issues_html += f'<h3 class="{color_class}">{severity} 严重问题 ({len(issues)}项)</h3>'
         for i, iss in enumerate(issues, 1):
-            evidence_html = f'<div class="issue-evidence"><strong>报告原文：</strong>{iss["evidence"]}</div>' if iss.get("evidence") else ""
+            loc = iss.get("evidence_location", "")
+            if loc:
+                evidence_html = f'<div class="issue-highlight"><strong>📝 报告原文定位：</strong><span class="highlight-text">"{loc}"</span></div>'
+            elif iss.get("evidence"):
+                evidence_html = f'<div class="issue-evidence"><strong>报告原文：</strong>{iss["evidence"]}</div>'
+            else:
+                evidence_html = ""
             reasoning_html = f'<div class="issue-reasoning"><strong>AI推理过程：</strong><p>{iss["reasoning"]}</p></div>' if iss.get("reasoning") else ""
+            law_html = f'<div class="issue-law"><strong>引用法规：</strong>{iss["law_ref"]}</div>' if iss.get("law_ref") else ""
             issues_html += f"""
             <div class="issue-item">
                 <div class="issue-header">{i}. {iss['title']}</div>
                 <div class="issue-finding"><strong>发现：</strong>{iss['finding']}</div>
                 {evidence_html}
                 {reasoning_html}
-                {f'<div class="issue-law"><strong>依据：</strong>{iss["law_ref"]}</div>' if iss.get('law_ref') else ''}
+                {law_html}
                 <div class="issue-suggestion"><strong>建议：</strong>{iss['suggestion']}</div>
                 {f'<div class="issue-rule" style="color:var(--muted);font-size:11px;margin-top:6px;">规则: {iss["rule_id"]}</div>' if iss.get('rule_id') else ''}
             </div>
@@ -158,7 +194,9 @@ h1 {{ border-bottom: 3px solid #4fc3f7; padding-bottom: 12px; }}
 .issue-header {{ font-weight: 700; font-size: 16px; color: #0f172a; margin-bottom: 8px; }}
 .issue-finding, .issue-evidence, .issue-law, .issue-suggestion {{ margin: 6px 0; line-height: 1.7; }}
 .issue-evidence {{ background: #f8fafc; padding: 8px 10px; border-left: 3px solid #94a3b8; font-style: italic; color: #475569; }}
-.issue-reasoning {{ background: #fffbe6; padding: 10px 12px; border-left: 3px solid #f59e0b; margin: 8px 0; font-size: 13px; line-height: 1.8; color: #475569; }}
+.issue-highlight {{ background: #fffbeb; padding: 10px 12px; border-left: 3px solid #f59e0b; margin: 8px 0; }}
+.issue-highlight .highlight-text {{ background: #fef08a; padding: 2px 4px; border-radius: 3px; font-style: normal; color: #92400e; font-weight: 600; }}
+.issue-reasoning {{ background: #f0fdf4; padding: 10px 12px; border-left: 3px solid #10b981; margin: 8px 0; font-size: 13px; line-height: 1.8; color: #475569; }}
 .issue-reasoning p {{ margin: 4px 0; }}
 .issue-suggestion {{ color: #059669; }}
 h3.p0 {{ color: #ef4444; border-left: 4px solid #ef4444; padding-left: 12px; }}
@@ -172,7 +210,7 @@ h3.p2 {{ color: #3b82f6; border-left: 4px solid #3b82f6; padding-left: 12px; }}
 <h1>AI 环评智能审核报告</h1>
 <div class="meta">项目名称：{project_name}</div>
 <div class="meta">审核时间：{datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
-<div class="meta">审核引擎：恒新环保智能系统 v2.0（规则引擎 + LLM）</div>
+<div class="meta">审核引擎：恒新环保智能系统 v3.1（规则引擎 + 原文定位 + AI Agent 综合审查）</div>
 
 <div class="summary">
     <div class="summary-card p0"><b>{len(p0)}</b>P0 严重问题</div>

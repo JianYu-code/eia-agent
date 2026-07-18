@@ -152,11 +152,12 @@ async def run_llm_check(rule: dict, full_text: str, kb_results: list[dict]) -> l
 综合判断是否存在违反此规则的问题。如果存在多个小问题，合并输出。
 
 如果确实存在问题，输出JSON（不要带```标记）：
-{{"severity":"P0/P1/P2","title":"问题标题","finding":"具体发现（引用报告原文）","reasoning":"推理过程（包含：①自问→②判断依据→③标准对照→④最终判定）","law_ref":"法规依据（标准编号+条款名）","suggestion":"修改建议（具体可操作）"}}
+{{"severity":"P0/P1/P2","title":"问题标题","finding":"具体发现（引用报告原文）","evidence_location":"报告中精确的问题原文（10-50字的片段，用于在报告上高亮标记）","reasoning":"推理过程（包含：①自问→②判断依据→③标准对照→④最终判定）","law_ref":"法规依据（标准编号+条款名）","suggestion":"修改建议（具体可操作）"}}
 
 如果不存在问题，输出: null
 
 注意：
+- evidence_location字段必须是从报告中原文照抄的10-50字片段，用于在报告原文上做黄色高亮标记
 - reasoning字段必须包含完整推理链：①自问（提出了什么问题）②判断（报告中有什么/缺什么）③对照（标准要求什么）④判定（为什么定P0/P1/P2）
 - 所有标准编号必须真实，不得编造。不确定时写"相关技术导则"
 - 只输出一行JSON或null，不要任何其他内容。"""
@@ -179,7 +180,8 @@ async def run_llm_check(rule: dict, full_text: str, kb_results: list[dict]) -> l
                 "title": data["title"],
                 "finding": data.get("finding", ""),
                 "reasoning": data.get("reasoning", data.get("finding", "")),
-                "evidence": data.get("finding", ""),
+                "evidence": data.get("evidence_location", data.get("finding", "")),
+                "evidence_location": data.get("evidence_location", ""),
                 "law_ref": data.get("law_ref", rule.get("law_ref", "")),
                 "suggestion": data.get("suggestion", ""),
             }]
