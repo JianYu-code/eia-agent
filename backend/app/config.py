@@ -26,10 +26,10 @@ VECTOR_DIM = 1024
 
 MINERU_OUTPUT_DIR = os.getenv("MINERU_OUTPUT_DIR", r"C:\Users\haobo\Desktop\output\a")
 
-DIFY_API_URL = os.getenv("DIFY_API_URL", "http://localhost:3000/v1")
-DIFY_API_KEY = os.getenv("DIFY_API_KEY", "")
+DIFY_API_URL = os.getenv("DIFY_API_URL", "http://localhost/v1")
+DIFY_API_KEY = os.getenv("DIFY_API_KEY", "app-b3lTjnMSEWmraDarXZbBTPHF")
 
-AUDIT_ENGINE = os.getenv("AUDIT_ENGINE", "pipeline")  # "pipeline" | "dify"
+AUDIT_ENGINE = os.getenv("AUDIT_ENGINE", "dify")  # "pipeline" | "dify"
 
 DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)

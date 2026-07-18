@@ -266,12 +266,15 @@ async def _run_dify_workflow(project_id: str, full_text: str):
             resp = await client.post(
                 f"{DIFY_API_URL}/workflows/run",
                 json={
-                    "inputs": {"report_text": full_text, "project_id": project_id},
+                    "inputs": {"report_text": full_text},
                     "response_mode": "blocking",
                     "user": "eia-system",
                 },
                 headers={"Authorization": f"Bearer {DIFY_API_KEY}"}
             )
+            if resp.status_code >= 400:
+                detail = resp.text[:300]
+                raise Exception(f"Dify API {resp.status_code}: {detail}")
             resp.raise_for_status()
             data = resp.json()
 
