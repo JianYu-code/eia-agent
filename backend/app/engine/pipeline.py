@@ -86,13 +86,14 @@ async def run_audit_pipeline(project_id: str):
         from app.engine.steps.coefficients import check_emission_factors
         from app.engine.steps.hazardous import check_hazardous_waste
         from app.engine.steps.figures import check_text_figure_consistency
+        from app.engine.steps.recalculate import check_source_recalculation
 
         STEPS = [
             ("1 符合性检查", run_step, ["R-CLS-", "R-STRUCT-"], None),
             ("2 语言文字+标准引用", run_step, ["R-STD-"], None),
             ("3 敏感目标+环境数据", run_step, [], check_sensitive_targets),
             ("4 计算问题检查", run_step, [], check_calculations),
-            ("5 源强结果校核", run_step, ["R-SRC-"], None),
+            ("5 源强结果校核", run_step, ["R-SRC-"], check_source_recalculation),
             ("6 排放标准限值", run_step, [], check_emission_limits),
             ("7 产污系数核对", run_step, [], check_emission_factors),
             ("8 危废代码核查", run_step, [], check_hazardous_waste),
