@@ -1,54 +1,85 @@
 import json
-from app.knowledge.retriever import search_knowledge
+import re
 from app.llm.client import chat, get_active_profile
 from app.engine.grader import build_issue
+from app.engine.coefficient_db import query_waste
 
 
 async def check_hazardous_waste(full_text: str) -> list[dict]:
+    """危废代码核查：数据库精确匹配 + LLM兜底"""
     issues = []
     profile = await get_active_profile()
     if not profile:
         return issues
 
-    has_hw = any(kw in full_text for kw in ["危废","危险废物","HW","离子交换树脂","废机油","废活性炭","废催化剂","废溶剂","废酸","废碱","含油","含铅"])
+    hw_kw = ["危废", "危险废物", "HW", "离子交换树脂", "废机油", "废活性炭", "废催化剂",
+             "废溶剂", "废酸", "废碱", "含油", "含铅", "废树脂", "废包装", "漆渣", "污泥"]
+    has_hw = any(kw in full_text for kw in hw_kw)
     if not has_hw:
         return issues
 
-    results = search_knowledge("国家危险废物名录 HW 废物代码 危险废物类别 有机树脂 废矿物油 900", top_k=6)
-    kb_ctx = "\n".join([f"[{r['title']}] {r['excerpt'][:350]}" for r in results])
+    # Step 1: 从数据库匹配（精确查表）
+    db_matches = []
+    for kw in ["废离子交换树脂", "废机油", "废活性炭", "废催化剂", "废酸", "废碱",
+               "漆渣", "含油", "废包装", "电镀", "污泥", "废矿物油", "废溶剂", "废树脂"]:
+        if kw in full_text:
+            results = await query_waste(name=kw)
+            for r in results:
+                db_matches.append(r)
 
-    prompt = f"""你是危废管理专家。请核查报告中的危险废物识别和代码归类是否准确。
+    # Step 2: 对数据库未覆盖的危废，用 LLM 补充判断
+    db_matched_kw = set()
+    for m in db_matches:
+        for kw in hw_kw:
+            if kw in full_text and kw in (m.get("name","") + m.get("source_waste","")):
+                db_matched_kw.add(kw)
+
+    unmatched = [kw for kw in hw_kw if kw in full_text and kw not in db_matched_kw]
+
+    llm_issues = []
+    if unmatched:
+        results = await query_waste(name="")
+        kb_ctx = "\n".join([f"HW{r['category']} {r['code']} {r['name']}: {r['source_waste']}" for r in results[:10]])
+
+        prompt = f"""你是危废管理专家。以下报告可能含有未匹配的危废关键词，请核查：
 
 报告内容（摘要）：
 {full_text[:4000]}
 
-参考危废名录：
+常用危废代码参考：
 {kb_ctx}
 
-请逐项检查：
-1. 报告中提到的固体废物中，是否遗漏了应识别为危险废物的种类？
-   - 如废机油（HW08）、废活性炭（可能HW06/HW49）、废离子交换树脂（HW13）、废催化剂等
-2. 已识别的危废代码是否正确？
-   - 例如：废离子交换树脂的正确代码是 HW13 900-015-13（有机树脂类废物）
-   - 例如：废机油的正确代码是 HW08 900-214-08
-3. 危废代码中的废物类别和废物代码是否匹配？
-4. 是否给出了危废的产生量（或估算方法）、暂存方式和处置去向？
-5. 对于未识别的危废，应提示需要补充识别
+未匹配的关键词: {', '.join(unmatched[:8])}
 
-注意：由于危废名录复杂，判别结果仅作参考。请标注"仅供参考，建议查阅最新版《国家危险废物名录》确认"。
-以JSON格式输出：[{{"severity":"P0/P1/P2","title":"...","finding":"...","evidence_location":"...","reasoning":"...","law_ref":"...","suggestion":"..."}}]
+请检查是否有遗漏/错误的危废代码归类，输出JSON数组：[{{"severity":"P1","title":"...","finding":"..."}}]
 如果没有问题输出 []。只输出JSON。"""
 
-    try:
-        resp = await chat(prompt, profile=profile)
-        resp = resp.strip()
-        if resp.startswith("```"): resp = resp.split("```")[1]
-        data = json.loads(resp)
-        for item in data:
-            if isinstance(item, dict) and item.get("title"):
-                issues.append(build_issue("R-HW-001", item.get("severity","P1"), "危废核查", item["title"], item.get("finding",""),
-                    evidence=item.get("evidence_location",""), law_ref=item.get("law_ref",""), suggestion=item.get("suggestion","")))
-    except Exception:
-        pass
+        try:
+            resp = await chat(prompt, profile=profile)
+            resp = resp.strip()
+            if resp.startswith("```"): resp = resp.split("```")[1]
+            data = json.loads(resp)
+            for item in data:
+                if isinstance(item, dict) and item.get("title"):
+                    llm_issues.append(item)
+        except Exception:
+            pass
+
+    # Step 3: 合并输出
+    for m in db_matches:
+        issues.append(build_issue(
+            "R-HW-001", "P1", "危废核查",
+            f"识别到可能危废: {m['name']} (HW{m['category']} {m['code']})",
+            f"报告中含有疑似危险废物物质匹配到数据库记录。产生源: {m['source_waste']}",
+            law_ref=f"《国家危险废物名录（2021年版）》HW{m['category']} 类",
+            suggestion=f"请确认是否产生{m['name']}（HW{m['category']} {m['code']}），如确属危废应补充废物体积/重量估算、暂存方式及处置去向。"
+        ))
+
+    for item in llm_issues:
+        issues.append(build_issue(
+            "R-HW-001", item.get("severity", "P1"), "危废核查",
+            item["title"], item.get("finding", ""),
+            suggestion="建议对照《国家危险废物名录（2021年版）》核实。"
+        ))
 
     return issues

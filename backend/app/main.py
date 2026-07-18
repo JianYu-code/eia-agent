@@ -17,6 +17,12 @@ templates = Jinja2Templates(directory=_TEMPLATES_DIR)
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     await init_db()
+    try:
+        from app.engine.coefficient_db import init_coefficient_db, init_waste_db
+        await init_coefficient_db()
+        await init_waste_db()
+    except Exception:
+        pass
     yield
 
 
