@@ -25,7 +25,7 @@ def _save():
 
 
 def _make_key(rule_id: str, text: str) -> str:
-    h = hashlib.md5((rule_id + text[:5000]).encode()).hexdigest()
+    h = hashlib.md5((rule_id + text[:30000]).encode()).hexdigest()
     return f"{rule_id}:{h}"
 
 

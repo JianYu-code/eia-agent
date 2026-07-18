@@ -35,6 +35,7 @@ def build_llm(profile: Optional[LLMProfile] = None) -> ChatOpenAI:
         api_key=api_key,
         temperature=0.1,
         max_retries=max_retries,
+        seed=42,
     )
     if extra_body:
         kwargs["model_kwargs"] = {"extra_body": extra_body}
