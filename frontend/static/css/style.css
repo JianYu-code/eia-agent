@@ -73,6 +73,7 @@ a:hover { text-decoration: underline; }
   transition: all .15s; text-align: left; text-decoration: none;
 }
 .nav-item:hover { background: #f1f5f9; border-color: var(--line); text-decoration: none; }
+.nav-disabled:hover { background: transparent !important; border-color: transparent !important; }
 .nav-item.active { background: #eefdfb; color: var(--accent-dark); border-color: #d0f4ee; box-shadow: 0 10px 24px rgba(20,184,166,.10); }
 .nav-item i { width: 20px; text-align: center; color: var(--muted); }
 .nav-item.active i { color: var(--accent-dark); }
