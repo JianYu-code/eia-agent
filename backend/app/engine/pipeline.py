@@ -1,8 +1,12 @@
 import re
 from datetime import datetime
+
+import httpx
+
 from app.engine.extractor import extract_text
 from app.engine.grader import grade_issues, build_issue
 from app.engine.rules_engine import load_rules, run_keyword_check, run_cross_reference_check, run_llm_check
+from app.config import DIFY_API_URL, DIFY_API_KEY, AUDIT_ENGINE
 
 STANDARD_PATTERN = re.compile(r"(?:GB|GB/T|HJ|HJ/T|环发|环办|国环规)\s*[\d.\-—]+(?:\s*[—\-]\s*\d{4})?")
 
@@ -37,6 +41,12 @@ async def run_audit_pipeline(project_id: str):
         text_data = extract_text(project.file_path)
         full_text = text_data.get("full_text", "")
         chapters = text_data.get("chapters", [])
+        await update_progress(10, "1 提取文本", f"文本提取完成，{len(full_text)} 字符", "success")
+
+        # ── Dify 模式：调工作流 API ──
+        if AUDIT_ENGINE == "dify":
+            await _run_dify_workflow(project_id, full_text)
+            return
         await update_progress(15, "1 提取文本", f"文本提取完成，{len(full_text)} 字符", "success")
 
         report_type = "报告表" if "报告表" in full_text[:2000] else "报告书"
@@ -232,3 +242,71 @@ h3.p2{{color:#3b82f6;border-left:4px solid #3b82f6;padding-left:12px}}
 {issues_html or '<p style="text-align:center;color:#059669;font-size:18px;padding:40px;">未发现明显问题</p>'}
 <div class="standards"><strong>报告中引用的标准：</strong>{', '.join(standards[:20]) if standards else '未识别到标准编号'}<br><br><strong>免责声明：</strong>本审核报告由 AI 自动生成，仅供参考。最终审核结论应以具有相应审批权限的生态环境主管部门意见为准。</div>
 </body></html>"""
+
+
+async def _run_dify_workflow(project_id: str, full_text: str):
+    """调用 Dify 工作流 API 执行审核"""
+    from app.database import async_session
+    from app.models.project import Project
+    from sqlalchemy import select as _select
+
+    async def _update(pct, step, msg, lt="step"):
+        async with async_session() as db:
+            r = await db.execute(_select(Project).where(Project.id == project_id))
+            p = r.scalar_one_or_none()
+            if p:
+                p.progress = pct
+                p.step = step
+                p.logs = (p.logs or []) + [{"time": datetime.now().strftime("%H:%M:%S"), "message": msg, "type": lt}]
+                await db.commit()
+
+    try:
+        await _update(15, "Dify 工作流", "正在调用 Dify 审核工作流...", "step")
+        async with httpx.AsyncClient(timeout=600) as client:
+            resp = await client.post(
+                f"{DIFY_API_URL}/workflows/run",
+                json={
+                    "inputs": {"report_text": full_text, "project_id": project_id},
+                    "response_mode": "blocking",
+                    "user": "eia-system",
+                },
+                headers={"Authorization": f"Bearer {DIFY_API_KEY}"}
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        if data.get("data", {}).get("status") == "succeeded":
+            outputs = data["data"].get("outputs", {})
+            issues = outputs.get("issues", [])
+            agent_review = outputs.get("agent_review", "")
+            summary = outputs.get("summary", {})
+
+            graded = grade_issues(issues)
+            report_html = _generate_report("EIA Report", graded, full_text, [])
+            from app.config import UPLOAD_DIR
+            report_path = UPLOAD_DIR / f"report_{project_id}.html"
+            report_path.write_text(report_html, encoding="utf-8")
+
+            async with async_session() as db:
+                r = await db.execute(_select(Project).where(Project.id == project_id))
+                p = r.scalar_one_or_none()
+                if p:
+                    p.status = "completed"
+                    p.progress = 100
+                    p.step = "Dify审核完成"
+                    p.issues = {"P0": len(graded.get("P0", [])), "P1": len(graded.get("P1", [])), "P2": len(graded.get("P2", []))}
+                    p.report_path = str(report_path)
+                    p.logs = (p.logs or []) + [{"time": datetime.now().strftime("%H:%M:%S"), "message": f"Dify审核完成，共 {len(issues)} 个问题", "type": "success"}]
+                    await db.commit()
+        else:
+            raise Exception(data.get("data", {}).get("error", "Dify 工作流执行失败"))
+
+    except Exception as e:
+        async with async_session() as db:
+            r = await db.execute(_select(Project).where(Project.id == project_id))
+            p = r.scalar_one_or_none()
+            if p:
+                p.status = "failed"
+                p.step = f"Dify失败: {str(e)[:100]}"
+                p.logs = (p.logs or []) + [{"time": datetime.now().strftime("%H:%M:%S"), "message": str(e), "type": "error"}]
+                await db.commit()

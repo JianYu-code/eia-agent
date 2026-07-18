@@ -47,6 +47,15 @@
     <button class="btn btn-muted btn-sm" onclick="clearCache()"><i class="fas fa-trash"></i>清除缓存</button>
   </div>
 </div>
+
+<div class="panel mt-3">
+  <div class="font-semibold mb-2" style="color:#0f172a;">审核引擎模式</div>
+  <div class="text-muted text-sm mb-2">切换审核引擎。Dify 模式需先在 config.py 或环境变量中配置 DIFY_API_KEY。</div>
+  <div class="flex items-center gap-3">
+    <span class="badge badge-uploaded" id="engineBadge">当前: Pipeline</span>
+    <span class="text-muted text-xs">在 config.py 中设置 AUDIT_ENGINE = "dify" 并配置 DIFY_API_KEY 即可切换</span>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
