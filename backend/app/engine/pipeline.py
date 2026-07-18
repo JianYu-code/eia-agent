@@ -40,8 +40,6 @@ async def run_audit_pipeline(project_id: str):
         chapters = text_data.get("chapters", [])
         await update_progress(10, "1 提取文本", f"文本提取完成，{len(full_text)} 字符", "success")
 
-        await update_progress(15, "1 提取文本", f"文本提取完成，{len(full_text)} 字符", "success")
-
         report_type = "报告表" if "报告表" in full_text[:2000] else "报告书"
         rules = load_rules(project.audit_domain or "eia", report_type)
         all_issues = []
@@ -235,30 +233,3 @@ h3.p2{{color:#3b82f6;border-left:4px solid #3b82f6;padding-left:12px}}
 {issues_html or '<p style="text-align:center;color:#059669;font-size:18px;padding:40px;">未发现明显问题</p>'}
 <div class="standards"><strong>报告中引用的标准：</strong>{', '.join(standards[:20]) if standards else '未识别到标准编号'}<br><br><strong>免责声明：</strong>本审核报告由 AI 自动生成，仅供参考。最终审核结论应以具有相应审批权限的生态环境主管部门意见为准。</div>
 </body></html>"""
-
-
-async def _run_dify_workflow(project_id: str, full_text: str):
-    """调用 Dify 工作流 API 执行审核"""
-    from app.database import async_session
-    from app.models.project import Project
-    from sqlalchemy import select as _select
-
-    async def _update(pct, step, msg, lt="step"):
-        async with async_session() as db:
-            r = await db.execute(_select(Project).where(Project.id == project_id))
-            p = r.scalar_one_or_none()
-            if p:
-                p.progress = pct
-                p.step = step
-                p.logs = (p.logs or []) + [{"time": datetime.now().strftime("%H:%M:%S"), "message": msg, "type": lt}]
-                await db.commit()
-
-    except Exception as e:
-        async with async_session() as db:
-            r = await db.execute(_select(Project).where(Project.id == project_id))
-            p = r.scalar_one_or_none()
-            if p:
-                p.status = "failed"
-                p.step = f"失败: {str(e)[:100]}"
-                p.logs = (p.logs or []) + [{"time": datetime.now().strftime("%H:%M:%S"), "message": str(e), "type": "error"}]
-                await db.commit()
