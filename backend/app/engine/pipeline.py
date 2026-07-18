@@ -261,11 +261,12 @@ async def _run_dify_workflow(project_id: str, full_text: str):
                 await db.commit()
 
     try:
-        await _update(15, "Dify 工作流", "正在调用 Dify 审核工作流...", "step")
+        await _update(15, "Dify Chatflow", "正在调用 Dify 审核 Chatflow...", "step")
         async with httpx.AsyncClient(timeout=600) as client:
             resp = await client.post(
-                f"{DIFY_API_URL}/workflows/run",
+                f"{DIFY_API_URL}/chat-messages",
                 json={
+                    "query": "请审核以下环评报告",
                     "inputs": {"report_text": full_text},
                     "response_mode": "blocking",
                     "user": "eia-system",
@@ -275,34 +276,42 @@ async def _run_dify_workflow(project_id: str, full_text: str):
             if resp.status_code >= 400:
                 detail = resp.text[:300]
                 raise Exception(f"Dify API {resp.status_code}: {detail}")
-            resp.raise_for_status()
             data = resp.json()
 
-        if data.get("data", {}).get("status") == "succeeded":
-            outputs = data["data"].get("outputs", {})
-            issues = outputs.get("issues", [])
-            agent_review = outputs.get("agent_review", "")
-            summary = outputs.get("summary", {})
+        answer = data.get("answer", "")
+        if not answer:
+            raise Exception("Dify 返回空回答")
 
-            graded = grade_issues(issues)
-            report_html = _generate_report("EIA Report", graded, full_text, [])
-            from app.config import UPLOAD_DIR
-            report_path = UPLOAD_DIR / f"report_{project_id}.html"
-            report_path.write_text(report_html, encoding="utf-8")
+        import json as _json
+        try:
+            answer_clean = answer.strip()
+            if answer_clean.startswith("```"): answer_clean = answer_clean.split("```")[1]
+            outputs = _json.loads(answer_clean)
+        except Exception:
+            outputs = {"issues": [], "summary": answer[:500]}
 
-            async with async_session() as db:
-                r = await db.execute(_select(Project).where(Project.id == project_id))
-                p = r.scalar_one_or_none()
-                if p:
-                    p.status = "completed"
-                    p.progress = 100
-                    p.step = "Dify审核完成"
-                    p.issues = {"P0": len(graded.get("P0", [])), "P1": len(graded.get("P1", [])), "P2": len(graded.get("P2", []))}
-                    p.report_path = str(report_path)
-                    p.logs = (p.logs or []) + [{"time": datetime.now().strftime("%H:%M:%S"), "message": f"Dify审核完成，共 {len(issues)} 个问题", "type": "success"}]
-                    await db.commit()
-        else:
-            raise Exception(data.get("data", {}).get("error", "Dify 工作流执行失败"))
+        issues = outputs.get("issues", outputs.get("merged_issues", []))
+        agent_review = outputs.get("agent_review", outputs.get("summary", ""))
+        if isinstance(agent_review, dict):
+            agent_review = _json.dumps(agent_review, ensure_ascii=False)
+
+        graded = grade_issues(issues) if issues else {"P0":[],"P1":[],"P2":[]}
+        report_html = _generate_report("EIA Report", graded, full_text, [])
+        from app.config import UPLOAD_DIR
+        report_path = UPLOAD_DIR / f"report_{project_id}.html"
+        report_path.write_text(report_html, encoding="utf-8")
+
+        async with async_session() as db:
+            r = await db.execute(_select(Project).where(Project.id == project_id))
+            p = r.scalar_one_or_none()
+            if p:
+                p.status = "completed"
+                p.progress = 100
+                p.step = "Dify审核完成"
+                p.issues = {"P0": len(graded.get("P0",[])), "P1": len(graded.get("P1",[])), "P2": len(graded.get("P2",[]))}
+                p.report_path = str(report_path)
+                p.logs = (p.logs or []) + [{"time": datetime.now().strftime("%H:%M:%S"), "message": f"Dify审核完成，共 {len(issues)} 个问题", "type": "success"}]
+                await db.commit()
 
     except Exception as e:
         async with async_session() as db:
