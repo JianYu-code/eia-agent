@@ -61,3 +61,52 @@ async def chat_stream(prompt: str, system: str = "", profile: Optional[LLMProfil
     async for chunk in llm.astream(messages):
         if chunk.content:
             yield chunk.content
+
+
+async def get_vision_profile() -> Optional[LLMProfile]:
+    from sqlalchemy import select
+    async with async_session() as db:
+        r = await db.execute(select(LLMProfile).where(LLMProfile.vision_active == True))
+        vp = r.scalar_one_or_none()
+        if vp:
+            return vp
+        r2 = await db.execute(select(LLMProfile).where(LLMProfile.purpose == "vision_review", LLMProfile.api_key != ""))
+        return r2.scalar_one_or_none()
+
+
+async def chat_vision(prompt: str, image_base64: str, system: str = "", profile: Optional[LLMProfile] = None) -> str:
+    """调用视觉模型，传入图片 base64 + 文本 prompt"""
+    if not profile:
+        profile = await get_vision_profile()
+    if not profile:
+        raise ValueError("未配置视觉模型。请在设置中添加 purpose=vision_review 的 LLM Profile。")
+
+    base_url = profile.base_url or LLM_DEFAULT_BASE_URL
+    model = profile.model or "glm-4v-flash"
+    api_key = profile.api_key or LLM_DEFAULT_API_KEY
+
+    import httpx
+    url = base_url.rstrip("/") + "/chat/completions"
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system} if system else None,
+            {"role": "user", "content": [
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_base64}"}},
+                {"type": "text", "text": prompt},
+            ]},
+        ],
+        "max_tokens": 2000,
+        "temperature": 0.1,
+    }
+    if not system:
+        payload["messages"].pop(0)
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        resp = await client.post(url, json=payload, headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        })
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"]

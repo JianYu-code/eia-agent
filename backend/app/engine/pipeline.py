@@ -69,7 +69,10 @@ async def run_audit_pipeline(project_id: str):
                 step_issues.extend(iss)
             if check_fn:
                 try:
-                    extra = await check_fn(full_text)
+                    if "figures" in str(check_fn):
+                        extra = await check_fn(full_text, project.file_path)
+                    else:
+                        extra = await check_fn(full_text)
                     for it in extra:
                         it["step"] = step_name
                     step_issues.extend(extra)
