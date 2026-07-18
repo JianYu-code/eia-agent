@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 
 from app.database import init_db
-from app.api import projects, knowledge, admin, files, generate, dify
+from app.api import projects, knowledge, admin, files, generate
 from app.config import BASE_DIR
 
 _TEMPLATES_DIR = str(BASE_DIR.parent / "frontend" / "templates")
@@ -41,7 +41,6 @@ app.include_router(knowledge.router)
 app.include_router(admin.router)
 app.include_router(files.router)
 app.include_router(generate.router)
-app.include_router(dify.router)
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR.parent / "frontend" / "static")), name="static")
 

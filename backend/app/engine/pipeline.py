@@ -1,12 +1,9 @@
 import re
 from datetime import datetime
 
-import httpx
-
 from app.engine.extractor import extract_text
 from app.engine.grader import grade_issues, build_issue
 from app.engine.rules_engine import load_rules, run_keyword_check, run_cross_reference_check, run_llm_check
-from app.config import DIFY_API_URL, DIFY_API_KEY, AUDIT_ENGINE
 
 STANDARD_PATTERN = re.compile(r"(?:GB|GB/T|HJ|HJ/T|环发|环办|国环规)\s*[\d.\-—]+(?:\s*[—\-]\s*\d{4})?")
 
@@ -43,10 +40,6 @@ async def run_audit_pipeline(project_id: str):
         chapters = text_data.get("chapters", [])
         await update_progress(10, "1 提取文本", f"文本提取完成，{len(full_text)} 字符", "success")
 
-        # ── Dify 模式：调工作流 API ──
-        if AUDIT_ENGINE == "dify":
-            await _run_dify_workflow(project_id, full_text)
-            return
         await update_progress(15, "1 提取文本", f"文本提取完成，{len(full_text)} 字符", "success")
 
         report_type = "报告表" if "报告表" in full_text[:2000] else "报告书"
@@ -260,65 +253,12 @@ async def _run_dify_workflow(project_id: str, full_text: str):
                 p.logs = (p.logs or []) + [{"time": datetime.now().strftime("%H:%M:%S"), "message": msg, "type": lt}]
                 await db.commit()
 
-    try:
-        await _update(15, "Dify Chatflow", "正在调用 Dify 审核 Chatflow...", "step")
-        async with httpx.AsyncClient(timeout=600) as client:
-            resp = await client.post(
-                f"{DIFY_API_URL}/chat-messages",
-                json={
-                    "query": "请审核以下环评报告",
-                    "inputs": {"report_text": full_text},
-                    "response_mode": "blocking",
-                    "user": "eia-system",
-                },
-                headers={"Authorization": f"Bearer {DIFY_API_KEY}"}
-            )
-            if resp.status_code >= 400:
-                detail = resp.text[:300]
-                raise Exception(f"Dify API {resp.status_code}: {detail}")
-            data = resp.json()
-
-        answer = data.get("answer", "")
-        if not answer:
-            raise Exception("Dify 返回空回答")
-
-        import json as _json
-        try:
-            answer_clean = answer.strip()
-            if answer_clean.startswith("```"): answer_clean = answer_clean.split("```")[1]
-            outputs = _json.loads(answer_clean)
-        except Exception:
-            outputs = {"issues": [], "summary": answer[:500]}
-
-        issues = outputs.get("issues", outputs.get("merged_issues", []))
-        agent_review = outputs.get("agent_review", outputs.get("summary", ""))
-        if isinstance(agent_review, dict):
-            agent_review = _json.dumps(agent_review, ensure_ascii=False)
-
-        graded = grade_issues(issues) if issues else {"P0":[],"P1":[],"P2":[]}
-        report_html = _generate_report("EIA Report", graded, full_text, [])
-        from app.config import UPLOAD_DIR
-        report_path = UPLOAD_DIR / f"report_{project_id}.html"
-        report_path.write_text(report_html, encoding="utf-8")
-
-        async with async_session() as db:
-            r = await db.execute(_select(Project).where(Project.id == project_id))
-            p = r.scalar_one_or_none()
-            if p:
-                p.status = "completed"
-                p.progress = 100
-                p.step = "Dify审核完成"
-                p.issues = {"P0": len(graded.get("P0",[])), "P1": len(graded.get("P1",[])), "P2": len(graded.get("P2",[]))}
-                p.report_path = str(report_path)
-                p.logs = (p.logs or []) + [{"time": datetime.now().strftime("%H:%M:%S"), "message": f"Dify审核完成，共 {len(issues)} 个问题", "type": "success"}]
-                await db.commit()
-
     except Exception as e:
         async with async_session() as db:
             r = await db.execute(_select(Project).where(Project.id == project_id))
             p = r.scalar_one_or_none()
             if p:
                 p.status = "failed"
-                p.step = f"Dify失败: {str(e)[:100]}"
+                p.step = f"失败: {str(e)[:100]}"
                 p.logs = (p.logs or []) + [{"time": datetime.now().strftime("%H:%M:%S"), "message": str(e), "type": "error"}]
                 await db.commit()
