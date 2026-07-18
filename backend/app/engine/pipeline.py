@@ -49,42 +49,59 @@ async def run_audit_pipeline(project_id: str):
         standards_found = list(set(STANDARD_PATTERN.findall(full_text)))[:20]
         standards_kb = search_knowledge(" ".join(standards_found[:5]) if standards_found else "标准引用 废止 更新", top_k=10)
 
-        # ═══ 11步审核管线 ═══
-        STEPS = [
-            ("1 符合性检查", "环评级别/报告类型/规划符合性", ["R-CLS-", "R-STRUCT-"]),
-            ("2 语言文字+标准引用", "字词/语法/术语规范、标准编号有效性", ["R-STD-"]),
-            ("3 敏感目标+环境数据", "周边环境敏感点和环境质量数据", []),
-            ("4 计算问题检查", "核验报告数值计算", []),
-            ("5 源强结果校核", "源强核算方法和结果准确性", ["R-SRC-"]),
-            ("6 排放标准限值", "排放标准限值引用和适用性", []),
-            ("7 产污系数核对", "产排污系数手册核对", []),
-            ("8 危废代码核查", "危废代码归类准确性", []),
-            ("9 可行技术检查", "污染治理技术可行性", ["R-MSR-"]),
-            ("10 图文一致性", "报告图文矛盾检查", []),
-            ("11 内容自洽性", "关键信息跨章节一致性", ["R-EVL-"]),
-        ]
-
-        for idx, (step_name, step_desc, step_prefixes) in enumerate(STEPS):
-            pct = 20 + idx * 55 // len(STEPS)
-            await update_progress(pct, step_name, step_desc, "step")
-            step_rules = [r for r in rules if any(r.get("rule_id","").startswith(p) for p in step_prefixes)]
-            if not step_rules and not step_prefixes:
-                await update_progress(pct + 3, step_name, f"{step_desc}（暂未深度实现，跳过）", "step")
-                continue
+        # ═══ 11步审核管线（每步有独立检查函数）═══
+        async def run_step(step_name, check_fn, full_text, rule_prefixes=None):
             step_issues = []
+            step_rules = [r for r in rules if any(r.get("rule_id","").startswith(p) for p in (rule_prefixes or []))] if rule_prefixes else []
             for rule in step_rules:
                 ct = rule.get("check_type", "keyword_match")
-                issues = []
                 if ct == "keyword_match":
-                    issues = run_keyword_check(rule, full_text)
+                    iss = run_keyword_check(rule, full_text)
                 elif ct == "cross_reference":
-                    issues = run_cross_reference_check(rule, full_text, standards_kb)
+                    iss = run_cross_reference_check(rule, full_text, standards_kb)
                 elif ct == "llm_judge":
-                    issues = await run_llm_check(rule, full_text, standards_kb)
-                for iss in issues:
-                    iss["rule_id"] = rule.get("rule_id", iss.get("rule_id", "R-UNK"))
-                    iss["step"] = step_name
-                step_issues.extend(issues)
+                    iss = await run_llm_check(rule, full_text, standards_kb)
+                else:
+                    iss = []
+                for it in iss:
+                    it["rule_id"] = rule.get("rule_id", it.get("rule_id", "R-UNK"))
+                    it["step"] = step_name
+                step_issues.extend(iss)
+            if check_fn:
+                try:
+                    extra = await check_fn(full_text)
+                    for it in extra:
+                        it["step"] = step_name
+                    step_issues.extend(extra)
+                except Exception:
+                    pass
+            return step_issues
+
+        from app.engine.steps.sensitive import check_sensitive_targets
+        from app.engine.steps.calculation import check_calculations
+        from app.engine.steps.limits import check_emission_limits
+        from app.engine.steps.coefficients import check_emission_factors
+        from app.engine.steps.hazardous import check_hazardous_waste
+        from app.engine.steps.figures import check_text_figure_consistency
+
+        STEPS = [
+            ("1 符合性检查", run_step, ["R-CLS-", "R-STRUCT-"], None),
+            ("2 语言文字+标准引用", run_step, ["R-STD-"], None),
+            ("3 敏感目标+环境数据", run_step, [], check_sensitive_targets),
+            ("4 计算问题检查", run_step, [], check_calculations),
+            ("5 源强结果校核", run_step, ["R-SRC-"], None),
+            ("6 排放标准限值", run_step, [], check_emission_limits),
+            ("7 产污系数核对", run_step, [], check_emission_factors),
+            ("8 危废代码核查", run_step, [], check_hazardous_waste),
+            ("9 可行技术检查", run_step, ["R-MSR-"], None),
+            ("10 图文一致性", run_step, [], check_text_figure_consistency),
+            ("11 内容自洽性", run_step, ["R-EVL-"], None),
+        ]
+
+        for idx, (step_name, step_fn, rule_prefixes, extra_fn) in enumerate(STEPS):
+            pct = 20 + idx * 55 // len(STEPS)
+            await update_progress(pct, step_name, step_fn.__doc__ or "", "step")
+            step_issues = await run_step(step_name, extra_fn, full_text, rule_prefixes if isinstance(rule_prefixes, list) and rule_prefixes else None)
             all_issues.extend(step_issues)
             msg = f"{step_name}: 发现 {len(step_issues)} 个问题" if step_issues else f"{step_name}: 通过"
             await update_progress(pct + 4, step_name, msg, "success" if not step_issues else "step")
