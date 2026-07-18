@@ -78,11 +78,14 @@ async def run_audit_pipeline(project_id: str):
         await update_progress(82, "综合审查", "AI Agent 综合审查所有发现...", "step")
 
         if all_issues:
+            p0_count = len([i for i in all_issues if i.get('severity') == 'P0'])
+            p1_count = len([i for i in all_issues if i.get('severity') == 'P1'])
+            p2_count = len([i for i in all_issues if i.get('severity') == 'P2'])
             from app.engine.rules_engine import run_llm_check as _agent_round
             agent_rule = {
                 "rule_id": "R-AGENT-REVIEW",
                 "check_config": {
-                    "description": f"你刚才审核了一份环评报告，已经发现了 {len(all_issues)} 个问题（P0: {len(graded.get('P0', []))} 个，P1: {len(graded.get('P1', []))} 个，P2: {len(graded.get('P2', []))} 个）。"
+                    "description": f"你刚才审核了一份环评报告，已经发现了 {len(all_issues)} 个问题（P0: {p0_count} 个，P1: {p1_count} 个，P2: {p2_count} 个）。"
                     f"\n\n请完成以下工作：\n"
                     f"1. 检查是否有自相矛盾的问题（如某条说『缺少编制依据』但同时说『编制依据引用正确』）\n"
                     f"2. 合并同类问题（如多条关于源强核算的问题可以合并为一个综合性意见）\n"
