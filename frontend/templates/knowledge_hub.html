@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-center justify-between mb-3">
+  <div>
+    <div class="page-title">知识入库</div>
+    <div class="page-subtitle">把新增资料投入待整理文件夹，系统转为 Markdown 存入知识库（Obsidian 兼容），重建索引后即可检索问答。</div>
+  </div>
+  <span id="healthBadge" class="badge badge-muted">健康检查中...</span>
+</div>
+
+<div class="panel mb-3">
+  <div class="font-semibold mb-3" style="color:#0f172a;">目录设置</div>
+  <div class="grid grid-2 gap-3">
+    <div>
+      <label class="text-muted text-xs">待整理文件夹（投递新资料）</label>
+      <input class="input" id="inboxDir">
+    </div>
+    <div>
+      <label class="text-muted text-xs">知识库目录（Obsidian 兼容 vault）</label>
+      <input class="input" id="vaultDir">
+    </div>
+  </div>
+  <div class="mt-3 flex gap-2">
+    <button class="btn btn-primary btn-sm" onclick="saveSettings()"><i class="fas fa-save"></i>保存设置</button>
+    <span class="text-muted text-xs">支持 MD / TXT / DOCX / PDF；MinerU 输出目录自动并入（双通道）。</span>
+  </div>
+</div>
+
+<div class="grid grid-2 gap-3 mb-3">
+  <div class="panel">
+    <div class="font-semibold mb-2" style="color:#0f172a;">① 整理入库</div>
+    <div class="text-muted text-sm mb-3">扫描待整理文件夹，新文件转 MD 写入知识库（SHA256 判重）。</div>
+    <div class="flex gap-2 items-center">
+      <button class="btn btn-primary" onclick="doOrganize(false)"><i class="fas fa-box-open"></i>立即整理</button>
+      <button class="btn btn-muted" onclick="doOrganize(true)"><i class="fas fa-layer-group"></i>整理+并入MinerU</button>
+    </div>
+    <div id="organizeStatus" class="text-muted text-sm mt-3"></div>
+  </div>
+  <div class="panel">
+    <div class="font-semibold mb-2" style="color:#0f172a;">② 重建检索索引</div>
+    <div class="text-muted text-sm mb-3">把知识库全部 MD 重新分块向量化，供检索问答使用。</div>
+    <button class="btn btn-primary" onclick="doReindex()"><i class="fas fa-rotate"></i>重建索引</button>
+    <div id="reindexStatus" class="text-muted text-sm mt-3"></div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="flex items-center justify-between mb-3">
+    <div class="font-semibold" style="color:#0f172a;">已入库文件 <span class="text-muted text-sm" id="fileCount"></span></div>
+    <button class="btn btn-muted btn-sm" onclick="loadFiles()"><i class="fas fa-refresh"></i>刷新</button>
+  </div>
+  <div class="flex gap-2 mb-3" id="catFilter">
+    <button class="btn btn-muted btn-sm" onclick="setCat('')">全部</button>
+    <button class="btn btn-muted btn-sm" onclick="setCat('标准规范')">标准规范</button>
+    <button class="btn btn-muted btn-sm" onclick="setCat('政策法规')">政策法规</button>
+    <button class="btn btn-muted btn-sm" onclick="setCat('案例报告')">案例报告</button>
+    <button class="btn btn-muted btn-sm" onclick="setCat('技术资料')">技术资料</button>
+  </div>
+  <div id="fileList" class="text-muted">加载中...</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let curCat = '';
+
+async function loadHealth() {
+  try {
+    const h = await api('/api/knowledge/health');
+    const b = document.getElementById('healthBadge');
+    if (h.ok) {
+      b.className = 'badge badge-completed';
+      b.textContent = `向量服务正常 · 索引 ${h.lance_rows} 条`;
+    } else {
+      b.className = 'badge badge-failed';
+      b.textContent = '向量服务异常：请检查 Ollama';
+      b.title = h.embed?.error || '';
+    }
+  } catch(e) {}
+}
+
+async function loadSettings() {
+  try {
+    const s = await api('/api/knowledge/hub-settings');
+    document.getElementById('inboxDir').value = s.inbox_dir || '';
+    document.getElementById('vaultDir').value = s.vault_dir || '';
+  } catch(e) {}
+}
+
+async function saveSettings() {
+  try {
+    await api('/api/knowledge/hub-settings', {method:'POST', body: JSON.stringify({
+      inbox_dir: document.getElementById('inboxDir').value.trim(),
+      vault_dir: document.getElementById('vaultDir').value.trim(),
+    })});
+    alert('已保存');
+  } catch(e) { alert(e.message); }
+}
+
+async function doOrganize(withMineru) {
+  document.getElementById('organizeStatus').innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> 整理中...';
+  try {
+    await api('/api/knowledge/organize?with_mineru=' + withMineru, {method:'POST', body:'{}'});
+    pollStatus();
+  } catch(e) { document.getElementById('organizeStatus').textContent = e.message; }
+}
+
+async function doReindex() {
+  document.getElementById('reindexStatus').innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> 重建索引中...';
+  try {
+    await api('/api/knowledge/reindex', {method:'POST', body:'{}'});
+    pollStatus();
+  } catch(e) { document.getElementById('reindexStatus').textContent = e.message; }
+}
+
+let polling = false;
+async function pollStatus() {
+  if (polling) return;
+  polling = true;
+  const timer = setInterval(async () => {
+    try {
+      const s = await api('/api/knowledge/organize-status');
+      const o = s.organize || {}, r = s.reindex || {};
+      if (o.phase && o.phase !== 'done') {
+        document.getElementById('organizeStatus').textContent =
+          `整理中 ${o.done||0}/${o.total||0} ${o.current||''}`;
+      } else if (o.phase === 'done') {
+        document.getElementById('organizeStatus').innerHTML =
+          `<span class="text-success">✓ 新增 ${o.added||0}，更新 ${o.updated||0}，跳过 ${o.skipped||0}，失败 ${o.failed||0}</span>（${o.finished_at||''}）`;
+        loadFiles();
+      }
+      if (r.phase === 'clearing' || r.phase === 'indexing') {
+        document.getElementById('reindexStatus').textContent =
+          `索引中 ${r.file_done||0}/${r.file_total||0} 文件，${r.chunks||0} 分块`;
+      } else if (r.phase === 'done') {
+        document.getElementById('reindexStatus').innerHTML =
+          `<span class="text-success">✓ ${r.files||0} 文件 → ${r.chunks||0} 分块</span>`;
+        loadHealth();
+      } else if (r.phase === 'error') {
+        document.getElementById('reindexStatus').innerHTML = `<span class="text-p0">失败：${esc(r.error||'')}</span>`;
+      }
+      const busy = (o.phase && !['done','error'].includes(o.phase)) || (r.phase && !['done','error'].includes(r.phase));
+      if (!busy) { clearInterval(timer); polling = false; }
+    } catch(e) { clearInterval(timer); polling = false; }
+  }, 1500);
+}
+
+function setCat(c) { curCat = c; loadFiles(); }
+
+async function loadFiles() {
+  try {
+    const d = await api('/api/knowledge/files' + (curCat ? '?category=' + encodeURIComponent(curCat) : ''));
+    const files = d.files || [];
+    document.getElementById('fileCount').textContent = `(${files.length})`;
+    document.getElementById('fileList').innerHTML = files.length
+      ? files.map(f => `<div class="panel-soft mb-2 p-3 flex items-start justify-between gap-2">
+          <div style="min-width:0;">
+            <div class="font-semibold text-sm" style="color:#0f172a;">${esc(f.name)}</div>
+            <div class="text-muted text-xs mt-1">${esc(f.summary||'').substring(0,120)}</div>
+            <div class="flex gap-2 mt-1 text-xs flex-wrap">
+              <span class="badge badge-uploaded">${esc(f.category)}</span>
+              <span class="badge badge-queued">${esc(f.channel)}</span>
+              <span class="text-muted">${esc(f.vault_path)}</span>
+              <span class="text-muted">${esc((f.imported_at||'').substring(0,16))}</span>
+            </div>
+          </div>
+          <button class="btn btn-muted btn-sm btn-icon" title="删除" onclick="delFile('${f.id}')"><i class="fas fa-trash"></i></button>
+        </div>`).join('')
+      : '<div class="text-muted text-sm">暂无入库文件。把资料放入待整理文件夹后点"立即整理"。</div>';
+  } catch(e) { document.getElementById('fileList').textContent = '加载失败'; }
+}
+
+async function delFile(id) {
+  if (!confirm('确认删除该文件及其索引？')) return;
+  try { await api('/api/knowledge/files/' + id, {method:'DELETE'}); loadFiles(); loadHealth(); }
+  catch(e) { alert(e.message); }
+}
+
+function esc(s) { return (s||'').replace(/</g,'&lt;'); }
+(async () => {
+  if (await requireAdminPage()) { loadHealth(); loadSettings(); loadFiles(); }
+})();
+</script>
+{% endblock %}

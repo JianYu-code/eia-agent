@@ -1,9 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-title">智能生成报告</div>
-<div class="page-subtitle">填写项目基本信息，AI 逐章生成完整环评报告，并输出 DOCX 文件</div>
+<div class="page-subtitle">填写项目信息或上传可研文件，AI 逐章生成 → 11 步自审核 → 自动修复，交付"出厂体检"级初稿</div>
 
 <form id="genForm" onsubmit="doGenerate(event)" style="max-width:900px;">
+  <div class="panel mb-3" style="border:1px dashed #93c5fd;background:#eff6ff;">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="font-semibold" style="color:#1d4ed8;"><i class="fas fa-file-arrow-up"></i> 可研/设计文件自动填表</div>
+        <div class="text-muted text-sm mt-1">上传 DOCX/PDF 可研或设计文件，AI 自动提取项目信息填入下方表单（可再修改）</div>
+      </div>
+      <div>
+        <input type="file" id="proposalFile" accept=".docx,.pdf,.md,.txt" style="display:none;" onchange="doParseProposal()">
+        <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('proposalFile').click()"><i class="fas fa-upload"></i>上传可研文件</button>
+      </div>
+    </div>
+    <div id="proposalStatus" class="text-sm mt-2"></div>
+  </div>
+
   <div class="panel mb-3">
     <div class="font-semibold mb-2" style="font-size:15px;color:#0f172a;">项目基本信息</div>
     <div class="grid grid-2 gap-3">
@@ -12,6 +26,7 @@
       <div><label class="text-muted text-sm">建设地点</label><input class="input" id="gen_location" placeholder="如：XX省XX市XX县"></div>
       <div><label class="text-muted text-sm">建设性质</label><select class="input" id="gen_nature"><option>新建</option><option>改建</option><option>扩建</option><option>技术改造</option></select></div>
       <div><label class="text-muted text-sm">行业类别</label><input class="input" id="gen_industry" placeholder="如：热力生产和供应业 D4430"></div>
+      <div><label class="text-muted text-sm">报告类型</label><select class="input" id="gen_report_type"><option>报告书</option><option>报告表</option></select></div>
       <div><label class="text-muted text-sm">总投资（万元）</label><input class="input" id="gen_investment" type="number" placeholder="500"></div>
       <div><label class="text-muted text-sm">用地面积（m²）</label><input class="input" id="gen_area" type="number" placeholder="5000"></div>
       <div><label class="text-muted text-sm">环境功能区划</label><input class="input" id="gen_envfunc" placeholder="如：二类环境空气质量功能区、2类声环境功能区"></div>
@@ -46,13 +61,47 @@
 
   <div class="flex items-center gap-3">
     <button type="submit" class="btn btn-primary" id="genBtn"><i class="fas fa-wand-magic-sparkles"></i>开始生成报告</button>
-    <span class="text-muted text-sm">生成过程约需 3-5 分钟，请耐心等待</span>
+    <span class="text-muted text-sm">生成+自审核约需 5-10 分钟，请耐心等待</span>
   </div>
   <div id="genStatus" class="mt-3"></div>
 </form>
 {% endblock %}
 {% block scripts %}
 <script>
+const FIELD_MAP = {
+  name:'gen_name', company:'gen_company', location:'gen_location', nature:'gen_nature',
+  industry:'gen_industry', investment:'gen_investment', area:'gen_area',
+  overview:'gen_overview', materials:'gen_materials', process:'gen_process',
+  equipment:'gen_equipment', air_pollution:'gen_air', water_pollution:'gen_water',
+  solid_waste:'gen_solid', noise:'gen_noise', sensitive_targets:'gen_sensitive',
+  env_function:'gen_envfunc',
+};
+
+async function doParseProposal() {
+  const f = document.getElementById('proposalFile').files[0];
+  if (!f) return;
+  const st = document.getElementById('proposalStatus');
+  st.innerHTML = '<span class="text-muted"><i class="fas fa-circle-notch fa-spin"></i> 正在解析可研文件，提取项目信息...</span>';
+  try {
+    const fd = new FormData();
+    fd.append('file', f);
+    const resp = await fetch('/api/generate/parse-proposal', {method:'POST', body: fd});
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || '解析失败');
+    let filled = 0;
+    for (const [k, elId] of Object.entries(FIELD_MAP)) {
+      const v = (data.fields||{})[k];
+      if (v) {
+        const el = document.getElementById(elId);
+        if (el) { el.value = v; filled++; }
+      }
+    }
+    st.innerHTML = `<span class="text-success"><i class="fas fa-check-circle"></i> 已从「${esc(data.filename)}」提取 ${filled} 个字段，请核对修改后开始生成</span>`;
+  } catch(e) {
+    st.innerHTML = `<span class="text-p0"><i class="fas fa-exclamation-circle"></i> ${esc(e.message)}</span>`;
+  }
+}
+
 async function doGenerate(e) {
   e.preventDefault();
   const btn = document.getElementById('genBtn');
@@ -70,6 +119,7 @@ async function doGenerate(e) {
     water_pollution: getVal('gen_water'), solid_waste: getVal('gen_solid'),
     noise: getVal('gen_noise'), sensitive_targets: getVal('gen_sensitive'),
     env_function: getVal('gen_envfunc'), notes: getVal('gen_notes'),
+    report_type: getVal('gen_report_type') || '报告书',
   };
 
   try {
@@ -78,41 +128,79 @@ async function doGenerate(e) {
     sessionStorage.setItem('gen_project_id', pid);
     sessionStorage.setItem('gen_status', 'running');
     window.addEventListener('beforeunload', beforeUnloadWarn);
-
-    document.getElementById('genStatus').innerHTML = `<div class="panel-soft p-3">
-      <div class="font-semibold" style="color:#0f172a;">报告正在生成中...</div>
-      <div class="text-muted text-sm mt-1">项目ID: ${pid}</div>
-      <div class="text-p0 text-sm mt-2" style="font-weight:700;"><i class="fas fa-exclamation-triangle"></i> 请勿离开或刷新页面，生成完成后可下载报告。</div>
-      <div class="progress-track mt-2"><div class="progress-bar" id="genProgressBar" style="width:0;"></div></div>
-      <div class="text-muted text-sm mt-2" id="genStep">启动生成...</div>
-      <a href="/api/generate/${pid}/download" class="btn btn-green btn-sm mt-2 hidden" id="genDownload"><i class="fas fa-download"></i>下载 Markdown 报告</a>
-    </div>`;
-
-    let intv = setInterval(async () => {
-      try {
-        const pd = await api('/api/projects');
-        const p = (pd.projects||[]).find(x => x.id === pid);
-        if (!p) return;
-        document.getElementById('genProgressBar').style.width = (p.progress||0)+'%';
-        document.getElementById('genStep').textContent = p.step || '';
-        if (p.status === 'completed') {
-          clearInterval(intv);
-          clearGenState();
-          document.getElementById('genDownload').classList.remove('hidden');
-          btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>开始生成报告';
-        } else if (p.status === 'failed') {
-          clearInterval(intv);
-          clearGenState();
-          document.getElementById('genStep').innerHTML = '<span class="text-p0">生成失败: '+p.step+'</span>';
-          btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>开始生成报告';
-        }
-      } catch(e) {}
-    }, 3000);
+    renderProgress(pid);
+    pollProject(pid, btn);
   } catch(e) {
     document.getElementById('genStatus').innerHTML = '<span class="text-p0">'+e.message+'</span>';
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>开始生成报告';
   }
+}
+
+function renderProgress(pid) {
+  document.getElementById('genStatus').innerHTML = `<div class="panel-soft p-3">
+    <div class="font-semibold" style="color:#0f172a;">双闭环进行中：生成 → 自审核 → 修复</div>
+    <div class="text-muted text-sm mt-1">项目ID: ${pid}</div>
+    <div class="progress-track mt-2"><div class="progress-bar" id="genProgressBar" style="width:0;"></div></div>
+    <div class="text-muted text-sm mt-2" id="genStep">启动生成...</div>
+    <div id="genLogs" class="text-muted text-xs mt-2" style="max-height:160px;overflow-y:auto;font-family:monospace;"></div>
+    <div id="genResult" class="mt-3 hidden"></div>
+  </div>`;
+}
+
+function renderDone(pid, p) {
+  const s = p.result_summary || {};
+  const gradeColor = {A:'#10b981',B:'#3b82f6',C:'#f59e0b',D:'#ef4444'}[s.grade]||'#64748b';
+  const el = document.getElementById('genResult');
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px;background:#fff;">
+      <div class="flex items-center gap-3">
+        <div style="font-size:34px;font-weight:900;color:${gradeColor};">${s.grade||'-'}</div>
+        <div>
+          <div class="font-semibold" style="color:#0f172a;">生成完成 · 自审核质量评级 ${s.grade||''}</div>
+          <div class="text-muted text-sm">P0:${s.p0_count||0} P1:${s.p1_count||0} P2:${s.p2_count||0}${s.repair_rounds?` · 自动修复 ${s.repair_rounds} 轮`:''}</div>
+          ${s.summary?`<div class="text-muted text-sm mt-1">${esc(s.summary)}</div>`:''}
+        </div>
+      </div>
+      <div class="flex gap-2 mt-3 flex-wrap">
+        <a href="/api/generate/${pid}/download" class="btn btn-green btn-sm"><i class="fas fa-download"></i>Markdown</a>
+        <a href="/api/generate/${pid}/download-docx" class="btn btn-green btn-sm"><i class="fas fa-download"></i>DOCX</a>
+        <a href="/api/projects/${pid}/report/view" target="_blank" class="btn btn-primary btn-sm"><i class="fas fa-file-shield"></i>自审核报告</a>
+      </div>
+      <div class="text-muted text-xs mt-2">⚠ 残留问题多为占位数据（【待补】），请工程师核实替换后使用。自审核报告可查看全部问题与修复记录。</div>
+    </div>`;
+}
+
+function pollProject(pid, btn) {
+  let lastLogCount = 0;
+  let intv = setInterval(async () => {
+    try {
+      const pd = await api('/api/projects');
+      const p = (pd.projects||[]).find(x => x.id === pid);
+      if (!p) return;
+      document.getElementById('genProgressBar').style.width = (p.progress||0)+'%';
+      document.getElementById('genStep').textContent = p.step || '';
+      const logs = p.logs||[];
+      if (logs.length > lastLogCount) {
+        const box = document.getElementById('genLogs');
+        box.innerHTML = logs.slice(-12).map(l => `<div>[${l.time||''}] ${esc(l.message||'')}</div>`).join('');
+        box.scrollTop = box.scrollHeight;
+        lastLogCount = logs.length;
+      }
+      if (p.status === 'completed') {
+        clearInterval(intv);
+        clearGenState();
+        renderDone(pid, p);
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>开始生成报告';
+      } else if (p.status === 'failed') {
+        clearInterval(intv);
+        clearGenState();
+        document.getElementById('genStep').innerHTML = '<span class="text-p0">失败: '+esc(p.step||'')+'</span>';
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>开始生成报告';
+      }
+    } catch(e) {}
+  }, 3000);
 }
 
 function beforeUnloadWarn(e) {
@@ -131,44 +219,15 @@ async function restoreGenState() {
   const pid = sessionStorage.getItem('gen_project_id');
   const status = sessionStorage.getItem('gen_status');
   if (!pid || status !== 'running') return;
-
-  document.getElementById('genStatus').innerHTML = `<div class="panel-soft p-3">
-    <div class="font-semibold" style="color:#0f172a;">恢复生成状态...</div>
-    <div class="text-muted text-sm mt-1">项目ID: ${pid}</div>
-    <div class="text-p0 text-sm mt-2" style="font-weight:700;"><i class="fas fa-exclamation-triangle"></i> 请勿离开或刷新页面。</div>
-    <div class="progress-track mt-2"><div class="progress-bar" id="genProgressBar" style="width:0;"></div></div>
-    <div class="text-muted text-sm mt-2" id="genStep">正在连接...</div>
-    <a href="/api/generate/${pid}/download" class="btn btn-green btn-sm mt-2 hidden" id="genDownload"><i class="fas fa-download"></i>下载 Markdown 报告</a>
-  </div>`;
-
-  document.getElementById('genBtn').disabled = true;
-  document.getElementById('genBtn').innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> 生成中...';
+  renderProgress(pid);
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> 生成中...';
   window.addEventListener('beforeunload', beforeUnloadWarn);
-
-  let intv = setInterval(async () => {
-    try {
-      const pd = await api('/api/projects');
-      const p = (pd.projects||[]).find(x => x.id === pid);
-      if (!p) return;
-      document.getElementById('genProgressBar').style.width = (p.progress||0)+'%';
-      document.getElementById('genStep').textContent = p.step || '';
-      if (p.status === 'completed') {
-        clearInterval(intv);
-        clearGenState();
-        document.getElementById('genDownload').classList.remove('hidden');
-        document.getElementById('genBtn').disabled = false;
-        document.getElementById('genBtn').innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>开始生成报告';
-      } else if (p.status === 'failed') {
-        clearInterval(intv);
-        clearGenState();
-        document.getElementById('genStep').innerHTML = '<span class="text-p0">生成失败: '+p.step+'</span>';
-        document.getElementById('genBtn').disabled = false;
-        document.getElementById('genBtn').innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>开始生成报告';
-      }
-    } catch(e) {}
-  }, 3000);
+  pollProject(pid, btn);
 }
 
+function esc(s) { return (s||'').replace(/</g,'&lt;'); }
 restoreGenState();
 </script>
 {% endblock %}

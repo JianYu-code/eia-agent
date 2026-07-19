@@ -26,6 +26,11 @@ VECTOR_DIM = 1024
 
 MINERU_OUTPUT_DIR = os.getenv("MINERU_OUTPUT_DIR", r"C:\Users\haobo\Desktop\output\a")
 
+KNOWLEDGE_INBOX_DIR = os.getenv("KNOWLEDGE_INBOX_DIR", str(BASE_DIR / "knowledge_inbox"))
+KNOWLEDGE_VAULT_DIR = os.getenv("KNOWLEDGE_VAULT_DIR", str(BASE_DIR / "knowledge_vault"))
+
 DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
 UPLOAD_DIR.mkdir(exist_ok=True)
+Path(KNOWLEDGE_INBOX_DIR).mkdir(exist_ok=True)
+Path(KNOWLEDGE_VAULT_DIR).mkdir(exist_ok=True)

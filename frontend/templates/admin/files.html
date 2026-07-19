@@ -104,6 +104,8 @@ async function searchKB() {
 }
 
 function esc(s) { return (s||'').replace(/</g,'&lt;'); }
-load();
+(async () => {
+  if (await requireAdminPage()) { load(); }
+})();
 </script>
 {% endblock %}

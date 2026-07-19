@@ -1,0 +1,43 @@
+# 术语与敏感词规范检查表（O4）— 确定性全文扫描，命中即 P2
+# scope: full=全文扫描；title=仅章节标题行
+- term_id: T-ORG-001
+  wrong: ["环保局", "环保厅"]
+  correct: "生态环境局 / 生态环境厅"
+  scope: full
+  note: "2018 年机构改革后规范名称为「生态环境」部门，引用现行机构名称时应使用规范全称"
+
+- term_id: T-ORG-002
+  wrong: ["安监局"]
+  correct: "应急管理局"
+  scope: full
+  note: "机构改革后规范名称为应急管理部门"
+
+- term_id: T-ABS-001
+  wrong: ["绝对安全", "零风险", "零排放", "100%达标", "彻底消除污染"]
+  correct: ""
+  scope: full
+  note: "环评文件不得使用绝对化表述，应改为基于数据的科学性表述"
+
+- term_id: T-ABS-002
+  wrong: ["完全无害", "无任何影响", "不产生任何污染"]
+  correct: ""
+  scope: full
+  note: "绝对化表述，应说明影响程度与范围"
+
+- term_id: T-WORD-001
+  wrong: ["三废"]
+  correct: "废水、废气、固体废物"
+  scope: title
+  note: "正式报告章节标题中应使用规范污染物类别名称，不用简称"
+
+- term_id: T-UNIT-001
+  wrong: ["ppm", "ppb"]
+  correct: "mg/m³（标志）或 μg/m³"
+  scope: full
+  note: "我国排放标准浓度限值采用质量浓度单位，应换算并注明换算依据"
+
+- term_id: T-WORD-002
+  wrong: ["脱硫效率达", "除尘效率达"]
+  correct: "脱硫效率为 / 除尘效率为（并注明保证值或设计值）"
+  scope: full
+  note: "效率表述应注明是设计值、保证值还是监测值"

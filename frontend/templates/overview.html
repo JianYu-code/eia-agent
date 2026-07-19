@@ -3,7 +3,12 @@
 <div class="page-title">首页概览</div>
 <div class="page-subtitle">审核项目总览、统计趋势和快捷操作入口</div>
 
-<div class="grid" style="grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:16px;" id="statCards">
+<div class="grid" style="grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:16px;" id="statCards">
+  <div class="panel text-center" style="padding:18px 14px;">
+    <div class="text-muted" style="font-size:12px;">当前在线</div>
+    <div style="font-size:30px;font-weight:900;color:#7c3aed;" id="statOnline">-</div>
+    <div class="text-muted text-xs mt-1">今日访客 <span id="statToday">-</span> 人</div>
+  </div>
   <div class="panel text-center" style="padding:18px 14px;">
     <div class="text-muted" style="font-size:12px;">总项目</div>
     <div style="font-size:30px;font-weight:900;color:#0f172a;" id="statTotal">-</div>
@@ -126,6 +131,16 @@ async function load() {
 function esc(s) { return (s||'').replace(/</g,'&lt;'); }
 function sb(s) { return {uploaded:'badge-uploaded',queued:'badge-queued',running:'badge-running',completed:'badge-completed',failed:'badge-failed',stopped:'badge-stopped'}[s]||''; }
 function sl(s) { return {uploaded:'待审核',queued:'排队中',running:'审核中',completed:'已完成',failed:'失败',stopped:'已暂停'}[s]||s; }
+
+async function loadOnline() {
+  try {
+    const d = await api('/api/online');
+    document.getElementById('statOnline').textContent = d.online;
+    document.getElementById('statToday').textContent = d.today_visitors;
+  } catch(e) {}
+}
 load();
+loadOnline();
+setInterval(loadOnline, 15000);
 </script>
 {% endblock %}

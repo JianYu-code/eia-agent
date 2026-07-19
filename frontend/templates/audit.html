@@ -188,7 +188,7 @@ async function loadProjects() {
   renderPager();
 }
 
-async function startAudit(id) { try { await api('/api/projects/'+id+'/start',{method:'POST',body:'{}'}); loadProjects(); } catch(e) { alert(e.message); } }
+async function startAudit(id) { try { const r = await api('/api/projects/'+id+'/start',{method:'POST',body:'{}'}); if (r.message && r.queue_position > 1) alert(r.message); loadProjects(); } catch(e) { alert(e.message); } }
 async function delProject(id) { if (!confirm('确认删除？')) return; try { await api('/api/projects/'+id,{method:'DELETE'}); loadProjects(); } catch(e) { alert(e.message); } }
 async function stopAudit(id) { if (!confirm('确认暂停该审核任务？')) return; try { await api('/api/stop',{method:'POST',body:JSON.stringify({project_id:id})}); loadProjects(); } catch(e) { alert(e.message); } }
 async function purgeProject(id) { if (!confirm('确认彻底清除该工单记录？')) return; try { await api('/api/admin/projects/'+id+'/purge',{method:'POST',body:'{}'}); loadProjects(); } catch(e) { alert(e.message); } }

@@ -10,7 +10,7 @@ async def check_standards(full_text: str, standards_found: list[str]) -> list[di
         return issues
 
     for std in list(set(standards_found))[:12]:
-        results = search_knowledge(f"{std} 替代 废止 更新 现行", top_k=3)
+        results = search_knowledge(f"{std} 替代 废止 更新 现行", top_k=3, include_deprecated=True)
         if results and results[0].get("score", 1.0) < 0.6:
             issues.append(build_issue(
                 "R-STD-001", "P1", "标准引用",

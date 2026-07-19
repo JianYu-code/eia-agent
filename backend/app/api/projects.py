@@ -11,7 +11,6 @@ import json
 from app.database import get_db, async_session
 from app.config import UPLOAD_DIR, MAX_UPLOAD_BYTES
 from app.models.project import Project
-from app.engine.pipeline import run_audit_pipeline
 
 router = APIRouter(prefix="/api", tags=["projects"])
 
@@ -104,20 +103,15 @@ async def start_audit(
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    if project.status not in ("uploaded", "failed", "stopped"):
-        return {"message": "该项目已在审核中", "project": project.to_dict()}
+    if project.status in ("running", "queued"):
+        return {"message": "该项目已在审核队列中", "project": project.to_dict()}
 
-    project.status = "running"
-    project.progress = 0.0
-    project.step = "启动审核..."
-    project.logs = (project.logs or []) + [
-        {"time": datetime.now().strftime("%H:%M:%S"), "message": "审核任务已启动", "type": "success"}
-    ]
-    await db.commit()
+    from app.engine.queue import enqueue
+    position = await enqueue(project_id)
+    await db.refresh(project)
 
-    background_tasks.add_task(run_audit_pipeline, project_id)
-
-    return {"project": project.to_dict(), "message": "审核任务已启动"}
+    msg = "审核任务已启动" if position <= 1 else f"已加入队列（前面还有 {position - 1} 个任务）"
+    return {"project": project.to_dict(), "message": msg, "queue_position": position}
 
 
 @router.get("/projects/{project_id}/report/view")
@@ -146,24 +140,63 @@ async def download_report(
     if format == "docx":
         try:
             from docx import Document
-            from bs4 import BeautifulSoup
+            from app.models.project import AuditIssue
+
             doc = Document()
             doc.add_heading(f"审核报告 - {project.name}", level=0)
-            html = open(project.report_path, "r", encoding="utf-8").read()
-            soup = BeautifulSoup(html, "lxml")
-            for el in soup.select("h1,h2,h3,p,li"):
-                tag = el.name
-                text = el.get_text(strip=True)
-                if not text:
-                    continue
-                if tag == "h1":
-                    doc.add_heading(text, level=1)
-                elif tag == "h2":
-                    doc.add_heading(text, level=2)
-                elif tag == "h3":
-                    doc.add_heading(text, level=3)
-                else:
-                    doc.add_paragraph(text)
+            summary = project.result_summary or {}
+            if summary.get("grade"):
+                doc.add_paragraph(f"质量评级：{summary['grade']}　P0：{summary.get('p0_count', 0)}　P1：{summary.get('p1_count', 0)}　P2：{summary.get('p2_count', 0)}")
+            if summary.get("summary"):
+                doc.add_paragraph(f"专家组总结：{summary['summary']}")
+            for t in (summary.get("top3") or []):
+                doc.add_paragraph(f"优先整改：{t}")
+
+            result = await db.execute(
+                select(AuditIssue).where(AuditIssue.project_id == project_id)
+            )
+            db_issues = result.scalars().all()
+
+            if db_issues:
+                order = {"P0": 0, "P1": 1, "P2": 2}
+                db_issues = sorted(db_issues, key=lambda x: (order.get(x.severity, 3), x.rule_id))
+                cur_sev = None
+                for iss in db_issues:
+                    if iss.severity != cur_sev:
+                        cur_sev = iss.severity
+                        doc.add_heading(f"{cur_sev} 问题", level=1)
+                    doc.add_heading(iss.title, level=2)
+                    doc.add_paragraph(f"发现：{iss.finding}")
+                    if iss.evidence_location:
+                        doc.add_paragraph(f"报告原文：{iss.evidence_location}")
+                    if iss.reasoning:
+                        doc.add_paragraph(f"AI推理：{iss.reasoning}")
+                    if iss.law_ref:
+                        doc.add_paragraph(f"引用法规：{iss.law_ref}")
+                    if iss.suggestion:
+                        doc.add_paragraph(f"建议：{iss.suggestion}")
+                    meta = " ｜ ".join(filter(None, [iss.step, iss.chapter, iss.rule_id]))
+                    if meta:
+                        doc.add_paragraph(meta)
+            else:
+                from bs4 import BeautifulSoup
+                html = open(project.report_path, "r", encoding="utf-8").read()
+                soup = BeautifulSoup(html, "lxml")
+                for el in soup.select("h1,h2,h3,p,li"):
+                    tag = el.name
+                    text = el.get_text(strip=True)
+                    if not text:
+                        continue
+                    if tag == "h1":
+                        doc.add_heading(text, level=1)
+                    elif tag == "h2":
+                        doc.add_heading(text, level=2)
+                    elif tag == "h3":
+                        doc.add_heading(text, level=3)
+                    else:
+                        doc.add_paragraph(text)
+
+            doc.add_paragraph("免责声明：本审核报告由 AI 自动生成，为专家复核级智能审核意见，仅供参考。")
             import tempfile
             tmp = tempfile.NamedTemporaryFile(suffix=".docx", delete=False)
             doc.save(tmp.name)
@@ -171,7 +204,7 @@ async def download_report(
             return FileResponse(tmp.name, filename=f"审核报告_{project.name}.docx",
                                media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         except ImportError:
-            raise HTTPException(status_code=400, detail="需要安装 beautifulsoup4 和 lxml")
+            raise HTTPException(status_code=400, detail="需要安装 python-docx 和 beautifulsoup4")
 
     return FileResponse(project.report_path, filename=f"审核报告_{project.name}.html")
 
@@ -198,10 +231,11 @@ async def stop_audit(body: dict, db: AsyncSession = Depends(get_db)):
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
-    project.status = "stopped"
-    project.step = "已暂停"
-    await db.commit()
-    return {"project": project.to_dict()}
+    from app.engine.queue import cancel
+    action = await cancel(project_id)
+    await db.refresh(project)
+    msg = {"stopping": "将在当前步骤完成后停止", "dequeued": "已取消排队", "stopped": "已暂停"}.get(action, "已暂停")
+    return {"project": project.to_dict(), "message": msg}
 
 
 @router.get("/projects/{project_id}/stream")

@@ -47,6 +47,16 @@
     <button class="btn btn-muted btn-sm" onclick="clearCache()"><i class="fas fa-trash"></i>清除缓存</button>
   </div>
 </div>
+
+<div class="panel mt-3">
+  <div class="font-semibold mb-2" style="color:#0f172a;">管理员口令</div>
+  <div class="text-muted text-sm mb-3">口令用于保护大模型API、知识库管理、知识入库三个页面。修改后立即生效，请妥善分发给管理员。</div>
+  <div class="flex gap-2 items-center">
+    <input class="input" type="password" id="newAdminToken" placeholder="输入新口令（至少 6 位）" style="max-width:280px;">
+    <button class="btn btn-primary btn-sm" onclick="changeToken()"><i class="fas fa-key"></i>修改口令</button>
+    <span id="tokenMsg" class="text-sm"></span>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -57,7 +67,7 @@ async function load() {
 function renderList() {
   document.getElementById('profileList').innerHTML = profiles.length
     ? profiles.map(p => `<div class="llm-card ${p.id===selectedId?'active':''}" onclick="selectProfile('${p.id}')">
-        <div class="flex items-start justify-between"><div class="font-semibold" style="color:#0f172a;">${esc(p.name)}</div><span class="badge ${p.active?'badge-running':'badge-uploaded'}">${p.active?'启用':'未启用'}</span></div>
+        <div class="flex items-start justify-between"><div class="font-semibold" style="color:#0f172a;">${esc(p.name)}</div><div class="flex items-center gap-2"><span class="badge ${(p.purpose==='vision_review'?p.vision_active:p.active)?'badge-running':'badge-uploaded'}">${p.purpose==='vision_review'?(p.vision_active?'视觉启用':'未启用'):(p.active?'启用':'未启用')}</span><button class="btn btn-danger btn-sm btn-icon" style="padding:2px 8px;" title="删除此配置" onclick="event.stopPropagation();deleteProfile('${p.id}','${esc(p.name)}')"><i class="fas fa-trash"></i></button></div></div>
         <div class="text-muted text-sm mt-1">${esc(p.model)} · ${p.purpose==='vision_review'?'视觉审核':'问答审核'}</div>
         <div class="text-muted text-xs mt-1">${p.api_key_configured?'Key已配置':'未配置 Key'} · pool:${p.pool_enabled?'开':'关'}</div>
       </div>`).join('')
@@ -94,6 +104,15 @@ async function testConfig() {
     document.getElementById('configMsg').innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> 连接成功: '+d.reply+'</span>';
   } catch(e) { document.getElementById('configMsg').innerHTML = '<span class="text-p0">'+e.message+'</span>'; }
 }
+async function deleteProfile(id, name) {
+  if (!confirm(`确认删除配置「${name}」？此操作不可恢复。`)) return;
+  try {
+    const d = await api('/api/admin/llm-config/' + encodeURIComponent(id), {method: 'DELETE'});
+    profiles = d.profiles || [];
+    if (selectedId === id) newProfile(); else renderList();
+    document.getElementById('configMsg').innerHTML = '<span class="text-success">已删除</span>';
+  } catch(e) { document.getElementById('configMsg').innerHTML = '<span class="text-p0">'+e.message+'</span>'; }
+}
 function esc(s) { return (s||'').replace(/</g,'&lt;'); }
 async function loadCacheStats() {
   try {
@@ -107,7 +126,19 @@ async function clearCache() {
     document.getElementById('cacheInfo').textContent = '缓存已清除';
   } catch(e) {}
 }
-load();
-loadCacheStats();
+async function changeToken() {
+  const v = document.getElementById('newAdminToken').value.trim();
+  if (v.length < 6) { document.getElementById('tokenMsg').innerHTML = '<span class="text-p0">口令至少 6 位</span>'; return; }
+  try {
+    await api('/api/admin/token', {method:'POST', body: JSON.stringify({token: v})});
+    AdminAuth.token = v;
+    checkAdminAccess();
+    document.getElementById('newAdminToken').value = '';
+    document.getElementById('tokenMsg').innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> 口令已更新并保存到本机</span>';
+  } catch(e) { document.getElementById('tokenMsg').innerHTML = '<span class="text-p0">'+e.message+'</span>'; }
+}
+(async () => {
+  if (await requireAdminPage()) { load(); loadCacheStats(); }
+})();
 </script>
 {% endblock %}

@@ -1,4 +1,5 @@
-# 环评报告审核规则
+# 环评报告审核规则（扩编版 — 绑定 K 文件与目标章节）
+# kfiles: 注入的审核知识文件；target_chapters: 章节路由正则
 
 - rule_id: R-STRUCT-001
   domain: [eia, acceptance, emergency]
@@ -40,15 +41,48 @@
       - "污染物排放量汇总"
   law_ref: "《建设项目环境影响评价技术导则 总纲》（HJ 2.1-2016）及报告表编制要求"
 
+- rule_id: R-STRUCT-002
+  domain: [eia]
+  category: 结构完整性
+  severity: P1
+  title: "章节内容不得空洞或仅有标题"
+  check_type: llm_judge
+  kfiles: [K07]
+  target_chapters: ["."]
+  check_config:
+    description: |
+      检查各章节是否有实质内容：
+      1. 是否存在只有标题没有内容的章节（正文不足200字）
+      2. 是否存在"详见附图/见附件"但正文毫无说明的章节
+      3. 结论章节是否给出了明确的项目可行性结论
+  law_ref: "《建设项目环境影响评价技术导则 总纲》（HJ 2.1-2016）"
+
 - rule_id: R-STD-001
   domain: [eia, acceptance, emergency]
   category: 标准引用
   severity: P0
   title: "报告引用的标准应为现行有效版本"
   check_type: cross_reference
+  kfiles: [K01]
   check_config:
-    pattern: "(GB|GB/T|HJ|HJ/T|环发|环办|国环规)\\s*[\\d.\\-—]+"
+    pattern: "(?:GB|GB/T|HJ|HJ/T|DB\\s*\\d*/|环发|环办|国环规)\\s*[\\d.\\-—]+"
   law_ref: "《标准化法》《生态环境标准管理办法》"
+
+- rule_id: R-STD-002
+  domain: [eia]
+  category: 标准引用
+  severity: P1
+  title: "标准适用性：行业标准优先、地方标准区域匹配"
+  check_type: llm_judge
+  kfiles: [K01]
+  target_chapters: ["评价标准", "总则", "标准"]
+  check_config:
+    description: |
+      检查标准选择是否恰当：
+      1. 有行业排放标准的应优先执行行业标准而非综合标准
+      2. 地方标准（DB开头）的适用行政区域是否与项目所在地一致
+      3. 环境质量标准的功能区划是否与实际相符（如声环境2类区不能套1类标准）
+  law_ref: "《生态环境标准管理办法》"
 
 - rule_id: R-SRC-001
   domain: [eia, acceptance]
@@ -56,6 +90,9 @@
   severity: P0
   title: "污染源识别应完整，不得遗漏可能的评价因子"
   check_type: llm_judge
+  per_chapter: true
+  kfiles: [K04]
+  target_chapters: ["工程分析", "源强", "污染", "生产工艺"]
   check_config:
     description: |
       检查报告中是否完整识别了所有污染源和评价因子。
@@ -73,6 +110,9 @@
   severity: P0
   title: "源强核算方法应符合技术指南规定的优先次序，且取值有出处"
   check_type: llm_judge
+  per_chapter: true
+  kfiles: [K04, K05]
+  target_chapters: ["工程分析", "源强", "污染"]
   check_config:
     description: |
       检查源强核算方法和取值依据：
@@ -90,6 +130,8 @@
   severity: P1
   title: "采用类比法时应进行类比条件分析"
   check_type: llm_judge
+  kfiles: [K04]
+  target_chapters: ["工程分析", "源强"]
   check_config:
     description: |
       若报告使用类比法确定源强，需要满足以下所有条件：
@@ -101,12 +143,32 @@
       检查报告中是否对上述条件逐一进行了分析说明。
   law_ref: "《污染源源强核算技术指南 准则》（HJ 884-2018）"
 
+- rule_id: R-SRC-004
+  domain: [eia]
+  category: 源强核算
+  severity: P0
+  title: "改扩建项目应给出污染物排放三本账"
+  check_type: llm_judge
+  kfiles: [K04, K13]
+  target_chapters: ["工程分析", "三本账", "现有工程", "排放"]
+  check_config:
+    description: |
+      改扩建/技改项目必须给出：
+      1. 现有工程排放量（有实测或原环评依据）
+      2. 拟建工程排放量
+      3. "以新带老"削减量
+      4. 改扩建后全厂总排放量及增减量
+      若非改扩建项目，输出 null。
+  law_ref: "《污染源源强核算技术指南 准则》（HJ 884-2018）"
+
 - rule_id: R-CLS-001
   domain: [eia]
   category: 分类管理
   severity: P0
   title: "建设项目环评等级判定应符合分类管理名录规定"
   check_type: llm_judge
+  kfiles: [K02]
+  target_chapters: ["总则", "编制依据", "项目概况", "基本情况"]
   check_config:
     description: |
       检查报告的环评分类等级（报告书/报告表/登记表）是否正确：
@@ -115,12 +177,67 @@
       3. 如果报告做了报告书但分类名录允许报告表，也是问题（过度评价）
   law_ref: "《建设项目环境影响评价分类管理名录（2021年版）》"
 
+- rule_id: R-SPEC-001
+  domain: [eia]
+  category: 专项设置
+  severity: P0
+  title: "应按导则要求设置相应专项评价"
+  check_type: llm_judge
+  kfiles: [K03]
+  target_chapters: ["总则", "评价", "专项", "概况"]
+  check_config:
+    description: |
+      判断报告是否遗漏了应当设置的专项评价：
+      1. 涉及危险物质且Q≥1的项目是否设置环境风险专项
+      2. 排放SO₂+NOx≥500t/a或评价等级一级的项目是否设置大气专项
+      3. 涉及地下水敏感区的I、II类项目是否设置地下水专项
+      4. 涉及生态敏感区的项目是否设置生态专项
+      5. 涉及重金属/持久性有机污染物的污染影响型项目是否开展土壤评价
+      应设而未设 → P0；已设置则输出 null。
+  law_ref: "HJ 2.2-2018 / HJ 610-2016 / HJ 169-2018 / HJ 19-2022"
+
+- rule_id: R-LAW-001
+  domain: [eia]
+  category: 法规符合性
+  severity: P0
+  title: "项目应符合产业政策，不得属于淘汰/禁止类"
+  check_type: llm_judge
+  kfiles: [K08]
+  target_chapters: ["总则", "符合性", "产业政策", "规划", "概况"]
+  check_config:
+    description: |
+      检查产业政策符合性：
+      1. 项目是否属于《产业结构调整指导目录》中的禁止类/淘汰类（工艺、设备、产品）
+      2. 是否引用了现行版本的产业政策
+      3. 两高项目是否说明能耗与区域削减安排
+  law_ref: "《产业结构调整指导目录》"
+
+- rule_id: R-LAW-002
+  domain: [eia]
+  category: 法规符合性
+  severity: P1
+  title: "应开展三线一单与规划符合性分析"
+  check_type: llm_judge
+  kfiles: [K08]
+  target_chapters: ["总则", "符合性", "规划", "选址", "三线一单"]
+  check_config:
+    description: |
+      检查：
+      1. 是否分析生态保护红线、环境质量底线、资源利用上线符合性
+      2. 是否对照所在环境管控单元的生态环境准入清单
+      3. 园区内项目是否对照园区规划环评及审查意见的产业定位
+      4. 选址是否在禁建区（水源一级保护区、自然保护区核心区等）→ 此为P0
+  law_ref: "三线一单生态环境分区管控要求"
+
 - rule_id: R-MSR-001
   domain: [eia, acceptance]
   category: 污染防治
   severity: P1
   title: "污染治理措施应具体可行，而非形式化描述"
   check_type: llm_judge
+  per_chapter: true
+  kfiles: [K06]
+  target_chapters: ["环境保护措施", "污染防治", "措施", "可行性"]
   check_config:
     description: |
       检查污染防治措施是否具体可行：
@@ -131,18 +248,162 @@
       5. 对危废是否明确了暂存、处置方案
   law_ref: "污染防治可行技术指南"
 
+- rule_id: R-MSR-002
+  domain: [eia]
+  category: 污染防治
+  severity: P1
+  title: "无组织排放应有控制措施"
+  check_type: llm_judge
+  kfiles: [K06]
+  target_chapters: ["环境保护措施", "无组织", "废气", "措施"]
+  check_config:
+    description: |
+      检查无组织排放控制：
+      1. VOCs 物料储存、转移、工艺过程是否有收集/密闭措施
+      2. 粉尘无组织源（堆场、装卸）是否有抑尘措施
+      3. 是否给出厂界无组织达标论证
+  law_ref: "挥发性有机物无组织排放控制标准（GB 37822-2019）"
+
 - rule_id: R-EVL-001
   domain: [eia]
   category: 评价等级
   severity: P0
   title: "环境影响评价工作等级判定应符合导则规定"
   check_type: llm_judge
+  kfiles: [K09]
+  target_chapters: ["总则", "评价等级", "评价范围"]
   check_config:
     description: |
       检查大气、地表水、地下水、噪声、生态、风险等各要素的评价等级是否正确：
-      1. 大气评价等级是否按估算模式确定
-      2. 地表水评价等级是否按排放量和受纳水体规模确定
+      1. 大气评价等级是否按估算模式（Pmax）确定，有无计算过程
+      2. 地表水评价等级是否按排放方式和受纳水体确定
       3. 地下水评价等级是否按项目类别和敏感程度确定
       4. 风险评价等级是否按危险物质数量与临界量比值(Q值)确定
+      5. 评价范围是否与等级匹配
       不得编造具体导则编号，统一写"相关技术导则"。
   law_ref: "环境影响评价技术导则"
+
+- rule_id: R-MON-001
+  domain: [eia]
+  category: 现状监测
+  severity: P1
+  title: "环境现状监测方案应满足导则要求"
+  check_type: llm_judge
+  per_chapter: true
+  kfiles: [K10]
+  target_chapters: ["环境现状", "现状调查", "监测", "环境质量"]
+  check_config:
+    description: |
+      检查现状监测有效性：
+      1. 监测点位数量/位置是否满足评价等级要求，是否有布点图
+      2. 监测因子是否覆盖常规因子+特征因子
+      3. 监测频次（如大气连续7天）是否满足要求
+      4. 引用数据是否在3年有效期内并说明来源
+      5. 超标因子是否分析原因
+  law_ref: "环境影响评价技术导则 环境现状调查要求"
+
+- rule_id: R-PRD-001
+  domain: [eia]
+  category: 影响预测
+  report_type: "报告书"
+  severity: P1
+  title: "预测模型选择与预测内容应符合导则要求"
+  check_type: llm_judge
+  per_chapter: true
+  kfiles: [K11]
+  target_chapters: ["环境影响预测", "预测与评价", "大气", "预测"]
+  check_config:
+    description: |
+      检查预测环节：
+      1. 大气预测模型（AERMOD/ADMS/CALPUFF）选择是否与评价范围、地形匹配
+      2. 预测因子与评价因子是否一致
+      3. 是否叠加现状背景浓度
+      4. 大气环境防护距离是否计算，防护距离内敏感点是否说明
+      5. 预测结果（超标与否）与结论是否矛盾 —— 矛盾为P0
+  law_ref: "HJ 2.2-2018 环境影响评价技术导则 大气环境"
+
+- rule_id: R-TOT-001
+  domain: [eia]
+  category: 总量控制
+  severity: P1
+  title: "总量控制指标应明确来源并满足削减替代要求"
+  check_type: llm_judge
+  per_chapter: true
+  kfiles: [K13]
+  target_chapters: ["总量", "工程分析", "排放"]
+  check_config:
+    description: |
+      检查总量控制：
+      1. 是否明确 COD/氨氮/SO₂/NOx/VOCs 等总量指标及来源
+      2. 超标区域是否执行倍量削减替代
+      3. VOCs 总量是否包含有组织+无组织
+      4. 报告表污染物排放量汇总表与正文是否一致
+  law_ref: "《建设项目主要污染物排放总量指标审核及管理暂行办法》（环发〔2014〕197号）"
+
+- rule_id: R-PUB-001
+  domain: [eia]
+  category: 公众参与
+  report_type: "报告书"
+  severity: P1
+  title: "报告书应按规定开展公众参与"
+  check_type: llm_judge
+  kfiles: [K14]
+  target_chapters: ["公众参与", "公参", "公示"]
+  check_config:
+    description: |
+      检查公众参与程序（依据部令第4号）：
+      1. 是否有公众参与章节及公众参与说明
+      2. 首次公示、征求意见稿公示（网络≥10个工作日+报纸≥2次+张贴）程序是否完整
+      3. 公众意见是否逐条回应采纳情况
+      报告书无公参 → P0。
+  law_ref: "《环境影响评价公众参与办法》（生态环境部令第4号）"
+
+- rule_id: R-ATT-001
+  domain: [eia]
+  category: 附图附件
+  severity: P1
+  title: "附图附件应完整"
+  check_type: llm_judge
+  kfiles: [K15]
+  target_chapters: ["附图", "附件", "目录", "结论"]
+  check_config:
+    description: |
+      检查附图附件清单：
+      1. 必备附图：地理位置图、平面布置图、敏感目标分布图、监测布点图
+      2. 必备附件：立项文件、委托书、监测报告（CMA）
+      3. 改扩建项目：现有工程环评批复和验收意见
+      4. 危废处置协议或意向书
+  law_ref: "HJ 2.1-2016 附图附件要求"
+
+- rule_id: R-HW-002
+  domain: [eia, acceptance]
+  category: 危废管理
+  severity: P1
+  title: "危险废物应有规范的暂存与处置方案"
+  check_type: llm_judge
+  kfiles: [K12]
+  target_chapters: ["固废", "固体废物", "危险废物", "措施"]
+  check_config:
+    description: |
+      检查危废管理：
+      1. 危废暂存间是否有防渗、防雨、防流失措施及标识
+      2. 是否委托有资质单位处置并附协议/意向
+      3. 危废产生量估算及台账管理要求
+      4. 是否存在危废与一般固废混存、混入生活垃圾的表述 → P0
+  law_ref: "《国家危险废物名录（2021年版）》、GB 18597-2023"
+
+- rule_id: R-CONS-001
+  domain: [eia]
+  category: 内容自洽
+  severity: P1
+  title: "报告全文关键信息应一致"
+  check_type: llm_judge
+  kfiles: [K07]
+  target_chapters: ["."]
+  check_config:
+    description: |
+      检查全文一致性：
+      1. 项目名称、建设单位、建设地点是否全文一致
+      2. 关键数据（总投资、环保投资、排放量）前后是否一致
+      3. 结论与正文预测/措施是否呼应，有无互相矛盾
+  law_ref: "HJ 2.1-2016"

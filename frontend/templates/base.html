@@ -7,18 +7,160 @@
   <link rel="icon" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/css/style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .admin-locked { cursor: not-allowed !important; opacity: 0.45; }
+    .admin-locked .lock-icon { font-size: 10px; margin-left: 4px; }
+    #adminTokenModal { display: none; position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 9999; align-items: center; justify-content: center; }
+    #adminTokenModal .box { background: #fff; border-radius: 12px; padding: 24px; width: 360px; box-shadow: 0 20px 50px rgba(0,0,0,.2); }
+    #adminTokenModal input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; margin: 12px 0; font-size: 14px; box-sizing: border-box; }
+  </style>
   <script>
+    const AdminAuth = {
+      get token() { return localStorage.getItem('admin_token') || ''; },
+      set token(v) { v ? localStorage.setItem('admin_token', v) : localStorage.removeItem('admin_token'); },
+      verified: false,
+    };
+
+    async function verifyTokenServer(v) {
+      try {
+        const resp = await fetch('/api/admin/verify', { headers: { "X-Admin-Token": v } });
+        return resp.ok;
+      } catch (e) { return false; }
+    }
+
+    async function adminUnlockFlow() {
+      if (AdminAuth.verified) return true;
+      if (AdminAuth.token && await verifyTokenServer(AdminAuth.token)) {
+        AdminAuth.verified = true;
+        checkAdminAccess();
+        return true;
+      }
+      AdminAuth.token = '';
+      let errMsg = '';
+      while (true) {
+        const v = await adminPrompt(errMsg || '输入管理员口令以解锁管理功能');
+        if (!v) return false;
+        if (await verifyTokenServer(v)) {
+          AdminAuth.token = v;
+          AdminAuth.verified = true;
+          checkAdminAccess();
+          return true;
+        }
+        errMsg = '口令错误，请重试';
+      }
+    }
+
+    function adminPrompt(msg) {
+      return new Promise((resolve) => {
+        const m = document.getElementById('adminTokenModal');
+        m.style.display = 'flex';
+        document.getElementById('adminTokenMsg').textContent = msg || '该操作需要管理员口令';
+        document.getElementById('adminTokenErr').textContent = msg.includes('错误') ? msg : '';
+        const input = document.getElementById('adminTokenInput');
+        input.value = '';
+        setTimeout(() => input.focus(), 50);
+        const cleanup = (val) => { m.style.display = 'none'; resolve(val); };
+        document.getElementById('adminTokenOk').onclick = () => {
+          const v = input.value.trim();
+          if (!v) { document.getElementById('adminTokenErr').textContent = '请输入口令'; return; }
+          cleanup(v);
+        };
+        document.getElementById('adminTokenCancel').onclick = () => cleanup(null);
+        input.onkeydown = (e) => { if (e.key === 'Enter') document.getElementById('adminTokenOk').click(); };
+      });
+    }
+
     async function api(path, options = {}) {
-      const headers = { ...(options.headers || {}), "Content-Type": "application/json" };
-      const resp = await fetch(path, { ...options, headers });
+      const doFetch = () => fetch(path, {
+        ...options,
+        headers: { ...(options.headers || {}), "Content-Type": "application/json", "X-Admin-Token": AdminAuth.token },
+      });
+      let resp = await doFetch();
+      if (resp.status === 401) {
+        const v = await adminPrompt('输入管理员口令后继续');
+        if (v) {
+          AdminAuth.token = v;
+          resp = await doFetch();
+          if (resp.status === 401) {
+            AdminAuth.token = '';
+            throw new Error('口令错误');
+          }
+          checkAdminAccess();
+        } else {
+          throw new Error('已取消：无管理权限');
+        }
+      }
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.detail || "请求失败");
       return data;
     }
+
+    async function checkAdminAccess() {
+      let ok = false;
+      if (AdminAuth.token) {
+        try {
+          const resp = await fetch('/api/admin/verify', { headers: { "X-Admin-Token": AdminAuth.token } });
+          ok = resp.ok;
+        } catch (e) { ok = false; }
+      }
+      AdminAuth.verified = ok;
+      document.querySelectorAll('[data-admin]').forEach(el => {
+        if (ok) {
+          el.classList.remove('admin-locked');
+          el.removeAttribute('title');
+          const lock = el.querySelector('.lock-icon');
+          if (lock) lock.remove();
+        } else {
+          el.classList.add('admin-locked');
+          el.title = '您当前无权限访问';
+          if (!el.querySelector('.lock-icon')) {
+            const i = document.createElement('i');
+            i.className = 'fas fa-lock lock-icon';
+            el.appendChild(i);
+          }
+        }
+      });
+    }
+
+    async function requireAdminPage() {
+      if (!AdminAuth.verified) {
+        const ok = await adminUnlockFlow();
+        if (!ok) { location.href = '/app/overview'; return false; }
+      }
+      return true;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('[data-admin]').forEach(el => {
+        el.classList.add('admin-locked');
+        el.title = '您当前无权限访问';
+        el.addEventListener('click', async (e) => {
+          if (AdminAuth.verified) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const ok = await adminUnlockFlow();
+          if (ok && el.getAttribute('href')) location.href = el.getAttribute('href');
+        }, true);
+      });
+      checkAdminAccess();
+    });
     {% block head_extra %}{% endblock %}
   </script>
 </head>
 <body class="app-mode">
+
+<div id="adminTokenModal">
+  <div class="box">
+    <div style="font-weight:700;font-size:16px;"><i class="fas fa-lock" style="color:#f59e0b;margin-right:6px;"></i>管理员验证</div>
+    <div id="adminTokenMsg" class="text-muted text-sm" style="margin-top:6px;">该操作需要管理员口令</div>
+    <input id="adminTokenInput" type="password" placeholder="请输入管理员口令">
+    <div id="adminTokenErr" style="color:#dc2626;font-size:12px;min-height:16px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button id="adminTokenCancel" class="btn btn-muted btn-sm">取消</button>
+      <button id="adminTokenOk" class="btn btn-primary btn-sm">确认</button>
+    </div>
+  </div>
+</div>
 
 <header class="top-bar">
   <div class="top-brand">
@@ -45,8 +187,9 @@
   <a href="/app/coord" class="nav-item {% if active_page == 'coord' %}active{% endif %}"><i class="fas fa-location-crosshairs"></i>坐标互转</a>
   <a href="/app/calculator" class="nav-item {% if active_page == 'calculator' %}active{% endif %}"><i class="fas fa-calculator"></i>源强计算</a>
   <div class="nav-label">工具</div>
-  <a href="/app/settings" class="nav-item {% if active_page == 'settings' %}active{% endif %}"><i class="fas fa-sliders"></i>大模型 API</a>
-  <a href="/app/admin/files" class="nav-item {% if active_page == 'admin_files' %}active{% endif %}"><i class="fas fa-folder-open"></i>知识库管理</a>
+  <a href="/app/knowledge-hub" data-admin="1" class="nav-item {% if active_page == 'knowledge_hub' %}active{% endif %}"><i class="fas fa-inbox"></i>知识入库</a>
+  <a href="/app/settings" data-admin="1" class="nav-item {% if active_page == 'settings' %}active{% endif %}"><i class="fas fa-sliders"></i>大模型 API</a>
+  <a href="/app/admin/files" data-admin="1" class="nav-item {% if active_page == 'admin_files' %}active{% endif %}"><i class="fas fa-folder-open"></i>知识库管理</a>
   <a href="/app/admin/logs" class="nav-item {% if active_page == 'admin_logs' %}active{% endif %}"><i class="fas fa-clock-rotate-left"></i>系统日志</a>
 </aside>
 

@@ -1,6 +1,20 @@
 from typing import Optional, AsyncIterator
+import asyncio
+import os
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
+
+LLM_CONCURRENCY = max(1, int(os.getenv("LLM_CONCURRENCY", "3")))
+LLM_MAX_TOKENS = max(1024, int(os.getenv("LLM_MAX_TOKENS", "4096")))
+_llm_semaphore: asyncio.Semaphore | None = None
+
+
+def _get_semaphore() -> asyncio.Semaphore:
+    """全局 LLM 并发限流：所有 chat/chat_vision 共享，防 API 超限"""
+    global _llm_semaphore
+    if _llm_semaphore is None:
+        _llm_semaphore = asyncio.Semaphore(LLM_CONCURRENCY)
+    return _llm_semaphore
 
 from app.config import LLM_DEFAULT_BASE_URL, LLM_DEFAULT_MODEL, LLM_DEFAULT_API_KEY
 from app.database import async_session
@@ -36,6 +50,8 @@ def build_llm(profile: Optional[LLMProfile] = None) -> ChatOpenAI:
         temperature=0.1,
         max_retries=max_retries,
         seed=42,
+        timeout=180,
+        max_tokens=LLM_MAX_TOKENS,
     )
     if extra_body:
         kwargs["model_kwargs"] = {"extra_body": extra_body}
@@ -49,8 +65,17 @@ async def chat(prompt: str, system: str = "", profile: Optional[LLMProfile] = No
     if system:
         messages.append(SystemMessage(content=system))
     messages.append(HumanMessage(content=prompt))
-    response = await llm.ainvoke(messages)
-    return response.content
+    last_err = None
+    async with _get_semaphore():
+        for attempt in range(3):
+            try:
+                response = await llm.ainvoke(messages)
+                return response.content
+            except Exception as e:
+                last_err = e
+                if attempt < 2:
+                    await asyncio.sleep(2 ** attempt * 2)
+    raise last_err
 
 
 async def chat_stream(prompt: str, system: str = "", profile: Optional[LLMProfile] = None) -> AsyncIterator[str]:
@@ -97,17 +122,18 @@ async def chat_vision(prompt: str, image_base64: str, system: str = "", profile:
                 {"type": "text", "text": prompt},
             ]},
         ],
-        "max_tokens": 2000,
+        "max_tokens": 4096,
         "temperature": 0.1,
     }
     if not system:
         payload["messages"].pop(0)
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(url, json=payload, headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        })
-        resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+    async with _get_semaphore():
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(url, json=payload, headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            })
+            resp.raise_for_status()
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]

@@ -1,16 +1,22 @@
-import json
 import re
+from app.engine.context import build_step_context
+from app.engine.llm_json import parse_llm_json
 from app.llm.client import chat, get_active_profile
 from app.engine.grader import build_issue
 from app.engine.coefficient_db import query_waste
 
+TARGET_CHAPTERS = ["固废", "固体废物", "危险废物", "工程分析", "污染防治"]
 
-async def check_hazardous_waste(full_text: str) -> list[dict]:
+
+async def check_hazardous_waste(text_data: dict, audit_ctx: dict | None = None) -> list[dict]:
     """危废代码核查：数据库精确匹配 + LLM兜底"""
     issues = []
     profile = await get_active_profile()
     if not profile:
-        return issues
+        raise RuntimeError("未配置启用的 LLM Profile")
+
+    full_text = text_data.get("full_text", "")
+    context = build_step_context(text_data, TARGET_CHAPTERS)
 
     hw_kw = ["危废", "危险废物", "HW", "离子交换树脂", "废机油", "废活性炭", "废催化剂",
              "废溶剂", "废酸", "废碱", "含油", "含铅", "废树脂", "废包装", "漆渣", "污泥"]
@@ -18,7 +24,6 @@ async def check_hazardous_waste(full_text: str) -> list[dict]:
     if not has_hw:
         return issues
 
-    # Step 1: 从数据库匹配（精确查表）
     db_matches = []
     for kw in ["废离子交换树脂", "废机油", "废活性炭", "废催化剂", "废酸", "废碱",
                "漆渣", "含油", "废包装", "电镀", "污泥", "废矿物油", "废溶剂", "废树脂"]:
@@ -27,11 +32,10 @@ async def check_hazardous_waste(full_text: str) -> list[dict]:
             for r in results:
                 db_matches.append(r)
 
-    # Step 2: 对数据库未覆盖的危废，用 LLM 补充判断
     db_matched_kw = set()
     for m in db_matches:
         for kw in hw_kw:
-            if kw in full_text and kw in (m.get("name","") + m.get("source_waste","")):
+            if kw in full_text and kw in (m.get("name", "") + m.get("source_waste", "")):
                 db_matched_kw.add(kw)
 
     unmatched = [kw for kw in hw_kw if kw in full_text and kw not in db_matched_kw]
@@ -43,8 +47,8 @@ async def check_hazardous_waste(full_text: str) -> list[dict]:
 
         prompt = f"""你是危废管理专家。以下报告可能含有未匹配的危废关键词，请核查：
 
-报告内容（摘要）：
-{full_text[:4000]}
+报告相关章节内容：
+{context}
 
 常用危废代码参考：
 {kb_ctx}
@@ -54,18 +58,12 @@ async def check_hazardous_waste(full_text: str) -> list[dict]:
 请检查是否有遗漏/错误的危废代码归类，输出JSON数组：[{{"severity":"P1","title":"...","finding":"..."}}]
 如果没有问题输出 []。只输出JSON。"""
 
-        try:
-            resp = await chat(prompt, profile=profile)
-            resp = resp.strip()
-            if resp.startswith("```"): resp = resp.split("```")[1]
-            data = json.loads(resp)
-            for item in data:
-                if isinstance(item, dict) and item.get("title"):
-                    llm_issues.append(item)
-        except Exception:
-            pass
+        resp = await chat(prompt, profile=profile)
+        data = parse_llm_json(resp, expect="array") or []
+        for item in data:
+            if isinstance(item, dict) and item.get("title"):
+                llm_issues.append(item)
 
-    # Step 3: 合并输出
     for m in db_matches:
         issues.append(build_issue(
             "R-HW-001", "P1", "危废核查",

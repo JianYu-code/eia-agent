@@ -7,6 +7,22 @@
   </div>
   <button class="btn btn-muted" onclick="load()"><i class="fas fa-rotate"></i>刷新</button>
 </div>
+
+<div class="panel mb-4">
+  <div class="font-semibold mb-2" style="font-size:16px;">审核质量反馈汇总</div>
+  <div class="text-muted text-sm mb-3">按规则聚合用户反馈（误报/准确/建议调整），高误报规则需优化提示词或检查逻辑。</div>
+  <div id="fbSummary">加载中...</div>
+</div>
+
+<div class="panel mb-4">
+  <div class="flex items-center justify-between mb-2">
+    <div class="font-semibold" style="font-size:16px;">历史审核案例库</div>
+    <button class="btn btn-muted" onclick="rebuildCases(this)"><i class="fas fa-arrows-rotate"></i>重建案例库</button>
+  </div>
+  <div class="text-muted text-sm mb-3">由「准确」反馈聚类凝练（≥2 次准确成案），作为同类问题判定要点注入审核 prompt；可禁用不准案例。</div>
+  <div id="caseList">加载中...</div>
+</div>
+
 <div id="logList" style="display:flex;flex-direction:column;gap:10px;"></div>
 {% endblock %}
 {% block scripts %}
@@ -28,7 +44,76 @@ async function load() {
       : '<div class="text-center text-muted p-4"><i class="fas fa-clock" style="font-size:28px;color:var(--accent);display:block;margin-bottom:8px;"></i>暂无日志</div>';
   } catch(e) { document.getElementById('logList').innerHTML = '<span class="text-p0">'+e.message+'</span>'; }
 }
+
+async function loadFeedback() {
+  try {
+    const d = await api('/api/admin/quality-feedback-summary');
+    const rules = d.rules || [];
+    if (!rules.length) {
+      document.getElementById('fbSummary').innerHTML = '<div class="text-muted">暂无审核问题数据</div>';
+      return;
+    }
+    let html = `<div class="text-sm mb-2 text-muted">问题总数 ${d.total_issues}，已反馈 ${d.total_feedback}</div>
+      <table class="table"><thead><tr><th>规则</th><th>类别</th><th>总数</th><th>准确</th><th>误报</th><th>待反馈</th><th>准确率</th></tr></thead><tbody>`;
+    for (const r of rules) {
+      const accColor = r.accuracy == null ? '#94a3b8' : (r.accuracy >= 80 ? '#059669' : (r.accuracy >= 50 ? '#d97706' : '#dc2626'));
+      html += `<tr>
+        <td><span class="badge badge-uploaded">${esc(r.rule_id)}</span></td>
+        <td class="text-sm">${esc(r.category||'')}</td>
+        <td>${r.total}</td>
+        <td style="color:#059669;">${r.accurate}</td>
+        <td style="color:#dc2626;">${r.false_positive}</td>
+        <td class="text-muted">${r.pending}</td>
+        <td style="color:${accColor};font-weight:700;">${r.accuracy == null ? '-' : r.accuracy + '%'}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    document.getElementById('fbSummary').innerHTML = html;
+  } catch(e) { document.getElementById('fbSummary').innerHTML = '<span class="text-muted">反馈汇总加载失败</span>'; }
+}
+async function loadCases() {
+  try {
+    const d = await api('/api/admin/cases');
+    const cases = d.cases || [];
+    if (!cases.length) {
+      document.getElementById('caseList').innerHTML = '<div class="text-muted">暂无案例。在报告页将准确意见标记「准确」，累计≥2次后点此重建。</div>';
+      return;
+    }
+    let html = `<div class="text-sm mb-2 text-muted">共 ${d.total} 条案例</div>
+      <table class="table"><thead><tr><th>规则</th><th>类别</th><th>标题模式</th><th>判定要点</th><th>准确次数</th><th>状态</th><th></th></tr></thead><tbody>`;
+    for (const c of cases) {
+      html += `<tr style="${c.enabled ? '' : 'opacity:0.45;'}">
+        <td><span class="badge badge-uploaded">${esc(c.rule_id)}</span></td>
+        <td class="text-sm">${esc(c.category||'')}</td>
+        <td class="text-sm">${esc((c.title_pattern||'').slice(0,30))}</td>
+        <td class="text-sm text-muted">${esc((c.key_points||'').slice(0,50))}</td>
+        <td style="color:#059669;font-weight:700;">${c.accurate_count}</td>
+        <td class="text-sm">${c.enabled ? '<span style="color:#059669;">启用</span>' : '<span class="text-muted">禁用</span>'}</td>
+        <td><button class="btn btn-muted" style="padding:2px 10px;font-size:12px;" onclick="toggleCase('${c.id}')">${c.enabled ? '禁用' : '启用'}</button></td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    document.getElementById('caseList').innerHTML = html;
+  } catch(e) { document.getElementById('caseList').innerHTML = '<span class="text-muted">案例库加载失败（可能无权限）</span>'; }
+}
+
+async function toggleCase(id) {
+  try { await api('/api/admin/cases/' + id + '/toggle', {method: 'POST'}); loadCases(); }
+  catch(e) { alert('操作失败: ' + e.message); }
+}
+
+async function rebuildCases(btn) {
+  btn.disabled = true;
+  try {
+    const d = await api('/api/admin/cases/rebuild', {method: 'POST'});
+    alert(`案例库重建完成：新建 ${d.created}，更新 ${d.updated}（聚类 ${d.groups} 组）`);
+    loadCases();
+  } catch(e) { alert('重建失败: ' + e.message); }
+  finally { btn.disabled = false; }
+}
 function esc(s) { return (s||'').replace(/</g,'&lt;'); }
 load();
+loadFeedback();
+loadCases();
 </script>
 {% endblock %}

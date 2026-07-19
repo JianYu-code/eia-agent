@@ -26,6 +26,12 @@ def _guess_std_id(name: str) -> str:
     return m.group().strip() if m else ""
 
 
+def _norm_std_id(sid: str) -> str:
+    """标准编号归一化：去空格、统一破折号、大写（与 file_index.standard_id 存储格式一致）"""
+    s = re.sub(r"\s+", "", (sid or "").strip().upper())
+    return s.replace("—", "-").replace("–", "-").replace("－", "-")
+
+
 def extract_info(file_path: Path) -> dict:
     parts = file_path.parent.parts
     category = ""
@@ -106,6 +112,7 @@ async def detect_obsolete():
 
         self_obsolete = 0
         replaced = 0
+        rel_map = {}  # {被替代标准编号: 替代者编号} 无论目标是否在 file_index 中
 
         for i, f in enumerate(files):
             if not Path(f.file_path).exists():
@@ -143,21 +150,25 @@ async def detect_obsolete():
                     self_obsolete += 1
 
             # 替代关系检测
-            source_id = _guess_std_id(f.title)
+            source_id = _norm_std_id(_guess_std_id(f.title))
             replaced_ids = set()
             for pattern in REPLACEMENT_PATTERNS:
                 for match in pattern.finditer(head):
                     std_match = STD_PATTERN.search(match.group())
                     if std_match:
-                        sid = std_match.group().strip()
-                        if sid != source_id:
+                        sid = _norm_std_id(std_match.group())
+                        if sid and sid != source_id:
                             replaced_ids.add(sid)
 
             if replaced_ids:
                 reason = f"{source_id} 代替了 {'、'.join(replaced_ids)}" if source_id else ""
+                from sqlalchemy import func
+                norm_col = func.replace(func.replace(func.replace(FileIndex.standard_id, " ", ""), "—", "-"), "–", "-")
                 for target_id in replaced_ids:
+                    if source_id:
+                        rel_map[target_id] = source_id
                     target_result = await db.execute(
-                        select(FileIndex).where(FileIndex.standard_id == target_id, FileIndex.deprecated == False)
+                        select(FileIndex).where(norm_col == target_id)
                     )
                     for tf in target_result.scalars().all():
                         tf.deprecated = True
@@ -170,6 +181,19 @@ async def detect_obsolete():
                 print(f"  进度: {i+1}/{len(files)}, 自身:{self_obsolete} 替代:{replaced}")
 
         await db.commit()
+
+    if rel_map:
+        import json as _json
+        map_path = Path(__file__).resolve().parent.parent / "backend" / "data" / "replacement_map.json"
+        existing = {}
+        if map_path.exists():
+            try:
+                existing = _json.loads(map_path.read_text(encoding="utf-8"))
+            except Exception:
+                existing = {}
+        existing.update(rel_map)
+        map_path.write_text(_json.dumps(existing, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"替代关系映射已保存 {len(existing)} 条 → {map_path}")
 
     print(f"\n深度检测完成: 自身废止 {self_obsolete}, 标记替代 {replaced}")
 

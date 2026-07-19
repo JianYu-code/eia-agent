@@ -1,23 +1,29 @@
-import json
-import re
+from app.engine.context import build_step_context
+from app.engine.llm_json import parse_llm_json
 from app.knowledge.retriever import search_knowledge
 from app.llm.client import chat, get_active_profile
 from app.engine.grader import build_issue
 
+TARGET_CHAPTERS = ["工程分析", "源强", "污染", "排放", "总量", "生产工艺", "物料"]
 
-async def check_calculations(full_text: str) -> list[dict]:
+
+async def check_calculations(text_data: dict, audit_ctx: dict | None = None) -> list[dict]:
     issues = []
     profile = await get_active_profile()
     if not profile:
-        return issues
+        raise RuntimeError("未配置启用的 LLM Profile")
 
-    results = search_knowledge("锅炉 废气 排放量 计算 物料衡算 SO₂ 颗粒物 NOx", top_k=5)
+    context = build_step_context(text_data, TARGET_CHAPTERS)
+    industry = (audit_ctx or {}).get("industry", "")
+    kb_query = f"{industry} 排放量 计算 物料衡算 产污系数" if industry else "排放量 计算 物料衡算 SO₂ 颗粒物 NOx"
+
+    results = search_knowledge(kb_query, top_k=5)
     kb_ctx = "\n".join([f"[{r['title']}] {r['excerpt'][:300]}" for r in results])
 
     prompt = f"""你是环评审核专家。请检查报告中数值计算的合理性和准确性。
 
-报告内容（摘要）：
-{full_text[:5000]}
+报告相关章节内容：
+{context}
 
 请检查：
 1. 报告中出现的数值（排放量、浓度、去除效率等）是否存在明显的计算错误？
@@ -28,19 +34,14 @@ async def check_calculations(full_text: str) -> list[dict]:
 4. 附表中的数值是否与正文一致？是否存在表内数据加总与合计不符？
 5. 排放速率(kg/h)与排放总量(t/a)之间的换算是否正确（注意年运行时间）？
 
-以JSON格式输出：[{{"severity":"P0/P1/P2","title":"...","finding":"...","evidence_location":"...","reasoning":"...","law_ref":"...","suggestion":"..."}}]
+以JSON数组格式输出：[{{"severity":"P0/P1/P2","title":"...","finding":"...","evidence_location":"...","reasoning":"...","law_ref":"...","suggestion":"..."}}]
 如果没有发现问题输出 []。只输出JSON。"""
 
-    try:
-        resp = await chat(prompt, profile=profile)
-        resp = resp.strip()
-        if resp.startswith("```"): resp = resp.split("```")[1]
-        data = json.loads(resp)
-        for item in data:
-            if isinstance(item, dict) and item.get("title"):
-                issues.append(build_issue("R-CALC-001", item.get("severity","P1"), "计算校验", item["title"], item.get("finding",""),
-                    evidence=item.get("evidence_location",""), law_ref=item.get("law_ref",""), suggestion=item.get("suggestion","")))
-    except Exception:
-        pass
+    resp = await chat(prompt, profile=profile)
+    data = parse_llm_json(resp, expect="array") or []
+    for item in data:
+        if isinstance(item, dict) and item.get("title"):
+            issues.append(build_issue("R-CALC-001", item.get("severity", "P1"), "计算校验", item["title"], item.get("finding", ""),
+                evidence=item.get("evidence_location", ""), law_ref=item.get("law_ref", ""), suggestion=item.get("suggestion", "")))
 
     return issues

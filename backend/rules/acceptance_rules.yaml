@@ -1,4 +1,21 @@
-# 竣工环保验收审核规则
+# 竣工环保验收审核规则（7 阶段管线，绑定 K16）
+
+- rule_id: R-ACC-FIT-001
+  domain: [acceptance]
+  category: 适用性识别
+  severity: P0
+  title: "验收范围与验收主体适用性识别"
+  check_type: llm_judge
+  kfiles: [K16]
+  target_chapters: ["前言", "总则", "概况", "验收"]
+  check_config:
+    description: |
+      识别本次验收的适用性：
+      1. 项目是否属于应组织竣工环保验收的范围（编制报告书/报告表的项目）
+      2. 验收主体是否为建设单位（自主验收），有无委托编制单位的说明
+      3. 分期建设/分期验收的是否说明本期验收范围
+      4. 登记表项目不属验收范围，若误送验应指出
+  law_ref: "《建设项目竣工环境保护验收暂行办法》（国环规环评〔2017〕4号）"
 
 - rule_id: R-ACC-001
   domain: [acceptance]
@@ -16,12 +33,48 @@
       - "验收标准"
   law_ref: "《建设项目竣工环境保护验收暂行办法》（国环规环评〔2017〕4号）"
 
+- rule_id: R-ACC-PROC-001
+  domain: [acceptance]
+  category: 手续与责任主体
+  severity: P0
+  title: "环评批复、排污许可等前置手续应齐备"
+  check_type: llm_judge
+  kfiles: [K16]
+  target_chapters: ["批复", "手续", "排污许可", "概况", "总则"]
+  check_config:
+    description: |
+      核查前置手续：
+      1. 是否取得环评批复且在有效期内建设
+      2. 纳入排污许可管理的项目是否已取得排污许可证（或登记）
+      3. 建设内容是否与环评批复一致，有无重大变动（产能、工艺、环保措施变化）
+      4. 重大变动是否重新报批环评 —— 未报批为 P0
+  law_ref: "《建设项目竣工环境保护验收暂行办法》"
+
+- rule_id: R-ACC-SELF-001
+  domain: [acceptance]
+  category: 验收自查
+  severity: P0
+  title: "环保设施三同时落实与批复逐条落实情况"
+  check_type: llm_judge
+  kfiles: [K16]
+  target_chapters: ["环保设施", "三同时", "落实情况", "措施", "自查"]
+  check_config:
+    description: |
+      核查验收自查：
+      1. 环保设施是否与主体工程同时设计、同时施工、同时投产
+      2. 环评批复要求是否逐条对照落实（措施、防护距离、总量、风险防范）
+      3. 环保设施不能稳定运行或未建成 → P0（不得通过情形）
+      4. 排污口规范化、在线监测安装是否符合批复
+  law_ref: "《建设项目竣工环境保护验收暂行办法》"
+
 - rule_id: R-ACC-002
   domain: [acceptance]
   category: 监测方案
   severity: P0
   title: "验收监测方案应覆盖全部污染源和污染物"
   check_type: llm_judge
+  kfiles: [K16]
+  target_chapters: ["监测", "验收监测", "点位", "方案"]
   check_config:
     description: |
       检查验收监测是否覆盖了环评批复中要求的所有污染源：
@@ -34,19 +87,38 @@
       不得编造标准编号。
   law_ref: "《建设项目竣工环境保护验收技术指南 污染影响类》"
 
+- rule_id: R-ACC-MON-001
+  domain: [acceptance]
+  category: 监测技术
+  severity: P1
+  title: "监测工况与质控应满足验收技术要求"
+  check_type: llm_judge
+  kfiles: [K16]
+  target_chapters: ["监测", "质控", "工况", "结果"]
+  check_config:
+    description: |
+      检查监测技术合规性：
+      1. 监测期间生产负荷是否≥75%（并附工况证明）
+      2. 是否有质控数据（平行样、加标回收、全程空白）
+      3. 监测单位是否具备 CMA 资质
+      4. 无组织排放监测点位设置是否符合规范
+  law_ref: "《建设项目竣工环境保护验收技术指南 污染影响类》"
+
 - rule_id: R-ACC-003
   domain: [acceptance]
   category: 达标分析
   severity: P0
   title: "验收监测结果应进行达标分析并与环评要求对比"
   check_type: llm_judge
+  kfiles: [K16]
+  target_chapters: ["监测结果", "达标", "结果分析", "排放"]
   check_config:
     description: |
       检查验收监测数据的达标分析：
       1. 各污染源排放浓度是否与排放标准限值对比
       2. 是否与环评报告/环评批复中提出的排放要求对比
       3. 是否计算了总量控制指标的落实情况（与环评批复的总量对比）
-      4. 如果超标或与环评不符，是否说明了原因和整改措施
+      4. 如果超标或与环评不符，是否说明了原因和整改措施 —— 超标未整改为 P0（不得通过情形）
       5. 监测期间的工况是否满足验收要求（生产负荷≥75%）
   law_ref: "《建设项目竣工环境保护验收暂行办法》"
 
@@ -56,6 +128,8 @@
   severity: P1
   title: "验收报告应包含环境管理检查内容"
   check_type: llm_judge
+  kfiles: [K16]
+  target_chapters: ["环境管理", "管理检查", "风险防范", "措施"]
   check_config:
     description: |
       检查验收报告中是否包含环境管理检查：
@@ -65,6 +139,23 @@
       4. 环评批复中其他要求的落实情况
       5. 是否附有必要的照片和支撑材料
   law_ref: "《建设项目竣工环境保护验收技术指南 污染影响类》"
+
+- rule_id: R-ACC-006
+  domain: [acceptance]
+  category: 总量控制
+  severity: P1
+  title: "验收应核算污染物排放总量是否满足环评批复要求"
+  check_type: llm_judge
+  kfiles: [K16, K13]
+  target_chapters: ["总量", "监测结果", "排放"]
+  check_config:
+    description: |
+      检查总量控制指标落实情况：
+      1. 是否列出了环评批复/排污许可证中规定的总量指标
+      2. 是否根据监测结果核算了实际排放总量
+      3. 实际排放总量是否超过批复的总量指标
+      4. 如超过，是否提出了削减方案 —— 超总量未提方案为 P0
+  law_ref: "《建设项目主要污染物排放总量指标审核及管理暂行办法》"
 
 - rule_id: R-ACC-005
   domain: [acceptance]
@@ -78,17 +169,42 @@
       - "通过"
   law_ref: "《建设项目竣工环境保护验收暂行办法》"
 
-- rule_id: R-ACC-006
+- rule_id: R-ACC-FUP-001
   domain: [acceptance]
-  category: 总量控制
+  category: 后续验收
   severity: P1
-  title: "验收应核算污染物排放总量是否满足环评批复要求"
+  title: "验收公示与平台备案程序"
   check_type: llm_judge
+  kfiles: [K16]
+  target_chapters: ["公示", "备案", "公开", "后续"]
   check_config:
     description: |
-      检查总量控制指标落实情况：
-      1. 是否列出了环评批复/排污许可证中规定的总量指标
-      2. 是否根据监测结果核算了实际排放总量
-      3. 实际排放总量是否超过批复的总量指标
-      4. 如超过，是否提出了削减方案
-  law_ref: "《建设项目主要污染物排放总量指标审核及管理暂行办法》"
+      检查验收后续程序：
+      1. 验收报告公示是否≥20个工作日
+      2. 是否在全国建设项目竣工环保验收信息平台填报
+      3. 验收意见是否经验收组签字确认
+      4. "其他需要说明的事项"是否齐全
+  law_ref: "《建设项目竣工环境保护验收暂行办法》"
+
+- rule_id: R-ACC-VETO-001
+  domain: [acceptance]
+  category: 不得通过情形
+  severity: P0
+  title: "不得通过验收的九种情形逐条核查"
+  check_type: llm_judge
+  kfiles: [K16]
+  target_chapters: ["."]
+  check_config:
+    description: |
+      逐条核查《暂行办法》第八条不得通过验收的情形：
+      1. 环保设施未按环评及批复建成或不能稳定运行
+      2. 污染物排放不符合标准或批复要求（超标）
+      3. 环评批复后发生重大变动未重新报批
+      4. 建设过程造成重大环境污染未治理或重大生态破坏未恢复
+      5. 无证排污或不按证排污
+      6. 分期建设环保设施未与主体工程同时建成
+      7. 因环保违法被处罚未改正
+      8. 验收报告数据明显不实、重大缺项、结论不明
+      9. 其他法定不得通过情形
+      存在任一情形 → P0 否决；均不存在 → 输出 null。
+  law_ref: "《建设项目竣工环境保护验收暂行办法》第八条"

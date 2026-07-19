@@ -4,6 +4,7 @@
   domain: [emergency]
   category: 总则与编制说明
   severity: P1
+  kfiles: [K17]
   title: "应急预案应包含编制目的、依据、适用范围和工作原则"
   check_type: keyword_match
   check_config:
@@ -20,6 +21,7 @@
   domain: [emergency]
   category: 风险识别
   severity: P0
+  kfiles: [K17]
   title: "应急预案应完整识别环境风险源和风险物质"
   check_type: llm_judge
   check_config:
@@ -37,6 +39,7 @@
   domain: [emergency]
   category: 风险评估
   severity: P0
+  kfiles: [K17]
   title: "应进行环境风险评估并确定风险等级"
   check_type: llm_judge
   check_config:
@@ -52,6 +55,7 @@
   domain: [emergency]
   category: 应急组织体系
   severity: P1
+  kfiles: [K17]
   title: "应建立完善的应急组织指挥体系"
   check_type: keyword_match
   check_config:
@@ -68,6 +72,7 @@
   domain: [emergency]
   category: 应急响应
   severity: P0
+  kfiles: [K17]
   title: "应急预案应包含分级响应机制和具体处置措施"
   check_type: llm_judge
   check_config:
@@ -85,6 +90,7 @@
   domain: [emergency]
   category: 应急保障
   severity: P1
+  kfiles: [K17]
   title: "应明确应急物资储备和经费保障"
   check_type: keyword_match
   check_config:
@@ -101,6 +107,7 @@
   domain: [emergency]
   category: 预案管理
   severity: P1
+  kfiles: [K17]
   title: "应包含预案演练、评估和修订计划"
   check_type: llm_judge
   check_config:
@@ -116,6 +123,7 @@
   domain: [emergency]
   category: 附件完整性
   severity: P2
+  kfiles: [K17]
   title: "应急预案应包含必要的附件材料"
   check_type: keyword_match
   check_config:
